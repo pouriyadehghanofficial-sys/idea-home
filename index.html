@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="fa" dir="rtl" class="scroll-smooth">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <!-- Shield against third-party Web3 wallet extensions (MetaMask, Coinbase, Phantom, etc.) injection collisions -->
+    <script>
+      (function() {
+        try {
+          window.addEventListener('error', function(event) {
+            if (event && event.message && typeof event.message === 'string' && event.message.includes('ethereum')) {
+              event.preventDefault();
+              event.stopImmediatePropagation();
+              return true;
+            }
+          }, true);
+
+          const origDefineProperty = Object.defineProperty;
+          Object.defineProperty = function(obj, prop, descriptor) {
+            if (obj === window && prop === 'ethereum') {
+              try {
+                return origDefineProperty.call(Object, obj, prop, {
+                  ...descriptor,
+                  configurable: true,
+                  writable: true
+                });
+              } catch (err) {
+                try {
+                  if (descriptor && 'value' in descriptor) {
+                    obj[prop] = descriptor.value;
+                  }
+                } catch (_) {}
+                return obj;
+              }
+            }
+            return origDefineProperty.apply(Object, arguments);
+          };
+        } catch (_) {}
+      })();
+    </script>
+
+    <link rel="icon" type="image/svg+xml" href="/logo.svg" />
+
+    <title>آیدیا هوم | همراه همیشگی خانه و آشپزخانه ایرانی</title>
+
+    <meta
+      name="description"
+      content="تولیدکننده محصولات کاربردی خانه و آشپزخانه با کیفیت صادراتی"
+    />
+
+    <!-- Open Graph (Telegram, WhatsApp, Facebook, LinkedIn preview) -->
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://ideahome-production.pages.dev/" />
+    <meta property="og:site_name" content="آیدیا هوم (IDEA HOME)" />
+    <meta
+      property="og:title"
+      content="آیدیا هوم | همراه همیشگی خانه و آشپزخانه ایرانی"
+    />
+    <meta
+      property="og:description"
+      content="تولیدکننده محصولات کاربردی خانه و آشپزخانه با کیفیت صادراتی"
+    />
+    <meta property="og:locale" content="fa_IR" />
+
+    <!-- Twitter Card (fallback used by some apps) -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta
+      name="twitter:title"
+      content="آیدیا هوم | همراه همیشگی خانه و آشپزخانه ایرانی"
+    />
+    <meta
+      name="twitter:description"
+      content="تولیدکننده محصولات کاربردی خانه و آشپزخانه با کیفیت صادراتی"
+    />
+
+    <!-- Canonical URL -->
+    <link rel="canonical" href="https://ideahome-production.pages.dev/" />
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="preconnect" href="https://images.unsplash.com" />
+
+    <link
+      rel="preload"
+      as="image"
+      href="https://images.unsplash.com/photo-1590736969955-71cc94801759?w=900&auto=format&fit=crop&q=80"
+      fetchpriority="high"
+    />
+
+    <!-- Primary Persian Font: Vazirmatn (all weights 300-800) + Latin Font: Inter / Poppins / JetBrains Mono -->
+    <link
+      href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;500;600;700;800;900&family=Inter:wght@400;500;600;700;800&family=Poppins:wght@500;600;700;800&family=JetBrains+Mono:wght@400;500;600&family=Fira+Code:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+
+    <!-- High-Availability CDN fallback for Vazirmatn font -->
+    <link
+      href="https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn@v33.003/Vazirmatn-font-face.css"
+      rel="stylesheet"
+      type="text/css"
+    />
+  </head>
+
+  <body class="bg-[#1E4B57] text-[#EDEAE4] antialiased selection:bg-[#346D80] selection:text-[#EDEAE4] font-vazir overflow-x-hidden">
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

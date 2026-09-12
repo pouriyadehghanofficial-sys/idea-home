@@ -1,0 +1,240 @@
+@import "tailwindcss";
+
+@theme {
+  --font-vazir: 'Vazirmatn', system-ui, -apple-system, sans-serif;
+  --font-latin: 'Inter', 'Poppins', sans-serif;
+  --color-brand-primary: #346D80;
+  --color-brand-dark: #1E4B57;
+  --color-brand-sage: #7FA69C;
+  --color-brand-light: #EDEAE4;
+  --color-brand-tan: #B49A7C;
+  --color-brand-gold: #C9A24B;
+}
+
+@layer base {
+  :root {
+    --primary: #346D80;
+    --dark-teal: #1E4B57;
+    --sage: #7FA69C;
+    --off-white: #EDEAE4;
+    --tan: #B49A7C;
+    --gold: #C9A24B;
+  }
+
+  html {
+    direction: rtl;
+    text-align: right;
+    background-color: #1E4B57;
+    color: #EDEAE4;
+    scroll-behavior: smooth;
+    font-family: 'Vazirmatn', system-ui, -apple-system, sans-serif;
+    letter-spacing: 0;
+  }
+
+  body {
+    background-color: #1E4B57;
+    color: #EDEAE4;
+    font-family: 'Vazirmatn', system-ui, -apple-system, sans-serif;
+    line-height: 1.8;
+    overflow-x: hidden;
+    direction: rtl;
+    text-align: right;
+  }
+
+  p {
+    line-height: 1.85;
+    letter-spacing: 0 !important;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    letter-spacing: 0 !important;
+  }
+}
+
+.font-vazir {
+  font-family: 'Vazirmatn', system-ui, sans-serif;
+}
+
+.font-latin {
+  font-family: 'Inter', 'Poppins', sans-serif;
+}
+
+/* Glassmorphism Classes adhering strictly to the user palette */
+.glass-panel {
+  background: rgba(237, 234, 228, 0.08);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(237, 234, 228, 0.15);
+  box-shadow: 0 8px 32px 0 rgba(14, 38, 44, 0.37);
+  border-radius: 20px;
+  transform: translateZ(0);
+}
+
+.glass-panel-hover {
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.glass-panel-hover:hover {
+  background: rgba(237, 234, 228, 0.13);
+  border-color: rgba(201, 162, 75, 0.4);
+  transform: translateY(-3px) translateZ(0);
+  box-shadow: 0 16px 40px 0 rgba(14, 38, 44, 0.5), 0 0 20px 0 rgba(127, 166, 156, 0.18);
+}
+
+.glass-nav {
+  background: rgba(30, 75, 87, 0.85);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid rgba(237, 234, 228, 0.12);
+  transform: translateZ(0);
+}
+
+/* Glass & Brand Buttons */
+.btn-gold {
+  background: linear-gradient(135deg, #D4AE57 0%, #C9A24B 100%);
+  color: #1E4B57;
+  font-weight: 700;
+  border-radius: 18px;
+  border: 1px solid rgba(237, 234, 228, 0.35);
+  box-shadow: 0 8px 24px -4px rgba(201, 162, 75, 0.45);
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.btn-gold:hover {
+  transform: translateY(-2px) scale(1.02);
+  background: linear-gradient(135deg, #DEC074 0%, #D4AE57 100%);
+  box-shadow: 0 12px 30px -4px rgba(201, 162, 75, 0.6);
+}
+.btn-gold:active {
+  transform: translateY(0) scale(0.98);
+}
+
+.btn-glass-hero {
+  background: rgba(237, 234, 228, 0.1);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid rgba(237, 234, 228, 0.22);
+  color: #EDEAE4;
+  border-radius: 18px;
+  font-weight: 700;
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 8px 24px -4px rgba(14, 38, 44, 0.4);
+}
+.btn-glass-hero:hover {
+  background: rgba(237, 234, 228, 0.18);
+  border-color: #7FA69C;
+  color: #FFFFFF;
+  transform: translateY(-2px) scale(1.02);
+  box-shadow: 0 12px 32px -4px rgba(52, 109, 128, 0.4);
+}
+.btn-glass-hero:active {
+  transform: translateY(0) scale(0.98);
+}
+
+.btn-outline-tan {
+  background: transparent;
+  border: 1px solid #B49A7C;
+  color: #EDEAE4;
+  border-radius: 18px;
+  font-weight: 600;
+  transition: all 0.25s ease;
+}
+.btn-outline-tan:hover {
+  background: rgba(180, 154, 124, 0.15);
+  border-color: #EDEAE4;
+  transform: translateY(-2px);
+}
+
+/* Ambient Gradient Blob Animations */
+@keyframes blob-drift-1 {
+  0%, 100% {
+    transform: translate(0, 0) scale(1);
+  }
+  50% {
+    transform: translate(30px, -25px) scale(1.08);
+  }
+}
+
+@keyframes blob-drift-2 {
+  0%, 100% {
+    transform: translate(0, 0) scale(1);
+  }
+  50% {
+    transform: translate(-35px, 25px) scale(0.94);
+  }
+}
+
+.animate-blob-1 {
+  will-change: transform;
+  transform: translate3d(0, 0, 0);
+  animation: blob-drift-1 12s ease-in-out infinite;
+}
+
+.animate-blob-2 {
+  will-change: transform;
+  transform: translate3d(0, 0, 0);
+  animation: blob-drift-2 15s ease-in-out infinite;
+}
+
+/* Infinite Marquee Animation for Client/Retailer Logos (RTL friendly) */
+@keyframes marquee-rtl {
+  0% {
+    transform: translateX(0%);
+  }
+  100% {
+    transform: translateX(50%);
+  }
+}
+
+.animate-marquee-rtl {
+  display: flex;
+  width: max-content;
+  animation: marquee-rtl 32s linear infinite;
+}
+
+.animate-marquee-rtl:hover {
+  animation-play-state: paused;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+}
+::-webkit-scrollbar-track {
+  background: #1E4B57;
+}
+::-webkit-scrollbar-thumb {
+  background: #346D80;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #7FA69C;
+}
+
+/* AH∞RA Footer Credit */
+.ahoora-credit {
+  text-align: center;
+  margin-top: 32px;
+  padding-top: 16px;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  color: rgba(255, 255, 255, 0.55);
+}
+
+.ahoora-credit a {
+  color: #38bdf8;
+  text-decoration: none;
+  background: linear-gradient(
+    90deg,
+    #38bdf8 0%,
+    #60a5fa 50%,
+    #818cf8 100%
+  );
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  filter: drop-shadow(0 0 6px rgba(56, 189, 248, 0.35));
+  transition: filter 0.25s ease;
+}
+
+.ahoora-credit a:hover {
+  filter: drop-shadow(0 0 10px rgba(56, 189, 248, 0.65));
+}

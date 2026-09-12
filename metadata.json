@@ -1,0 +1,6 @@
+{
+  "name": "ویترین محصولات تولیدی آراسته",
+  "description": "وبسایت رسمی کارخانه تولیدی لوازم خانه و آشپزخانه آیدیا هوم (IDEA HOME) - سینی‌های پلاستیکی، ترازوهای آشپزخانه و ظروف نگهداری مواد غذایی با پالت اختصاصی و طراحی مدرن",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
