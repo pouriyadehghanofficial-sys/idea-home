@@ -37,6 +37,11 @@ export interface Env {
 
   JWT_SECRET?: string;
 
+  // Resend Email Service
+  RESEND_API_KEY?: string;
+  NOTIFICATION_EMAIL?: string;
+  RESEND_FROM_EMAIL?: string;
+
   IMAGEKIT_PRIVATE_KEY?: string;
   IMAGEKIT_PUBLIC_KEY?: string;
   IMAGEKIT_URL_ENDPOINT?: string;
