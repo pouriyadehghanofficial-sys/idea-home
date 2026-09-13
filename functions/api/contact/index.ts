@@ -1,177 +1,383 @@
 // Cloudflare Pages Function: /api/contact
-// Handles public customer contact inquiries and admin message reading/updating in Central Cloud Storage
+// Handles public customer contact inquiries and admin message reading/updating.
 
 import { requireAdmin } from '../_auth';
-import { getContactMessages, saveContactMessage, updateMessageStatus, getDatabaseProviderName } from '../_db';
+import {
+  getContactMessages,
+  saveContactMessage,
+  updateMessageStatus,
+  getDatabaseProviderName,
+} from '../_db';
 
+interface ContactFormData {
+  name: string;
+  phone: string;
+  email?: string;
+  subject: string;
+  message: string;
+  productName?: string;
+  quantity?: string;
+}
+
+/**
+ * Send a notification email through Resend.
+ * Email failure must NOT prevent the customer's form submission
+ * from being saved successfully.
+ */
 async function sendResendNotification(
   env: Env,
-  data: {
-    name: string;
-    phone: string;
-    email?: string;
-    subject: string;
-    message: string;
-    productName?: string;
-    quantity?: string;
-  }
-) {
+  data: ContactFormData
+): Promise<void> {
   const apiKey = env.RESEND_API_KEY;
   const toEmail = env.NOTIFICATION_EMAIL;
 
   if (!apiKey || !toEmail) {
-    console.warn('[Resend] Missing API key or notification email');
+    console.error('[Resend] Missing RESEND_API_KEY or NOTIFICATION_EMAIL');
     return;
   }
 
-  const fromEmail = env.RESEND_FROM_EMAIL || 'onboarding@resend.dev';
+  const fromEmail =
+    env.RESEND_FROM_EMAIL || 'onboarding@resend.dev';
 
-  const html = `
-  <div dir="rtl" style="font-family:Tahoma,Arial;background:#f5f7fa;padding:25px">
-    <div style="max-width:600px;margin:auto;background:white;padding:25px;border-radius:12px">
-      
-      <h2 style="color:#1E4B57">
-        درخواست جدید از سایت آیدیا هوم
-      </h2>
+  const emailSubject =
+    `درخواست جدید همکاری و استعلام قیمت - ${data.name}`;
 
-      <hr/>
+  const htmlBody = `
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+</head>
 
-      <p><b>نام:</b> ${data.name}</p>
+<body style="
+  margin:0;
+  padding:0;
+  background:#f4f7f6;
+  font-family:Tahoma,Arial,sans-serif;
+  color:#1e293b;
+">
 
-      <p>
-        <b>شماره تماس:</b>
-        <a href="tel:${data.phone}">
-          ${data.phone}
-        </a>
-      </p>
+  <div style="padding:30px 15px;">
 
-      ${
-        data.email
-          ? `<p><b>ایمیل:</b> ${data.email}</p>`
-          : ''
-      }
-
-      <p><b>موضوع:</b> ${data.subject}</p>
-
-      ${
-        data.productName
-          ? `<p><b>محصول:</b> ${data.productName}</p>`
-          : ''
-      }
-
-      ${
-        data.quantity
-          ? `<p><b>تعداد:</b> ${data.quantity}</p>`
-          : ''
-      }
+    <div style="
+      max-width:650px;
+      margin:0 auto;
+      background:#ffffff;
+      border-radius:14px;
+      overflow:hidden;
+      border:1px solid #e2e8f0;
+    ">
 
       <div style="
-        margin-top:20px;
-        padding:15px;
-        background:#f8fafc;
-        border-right:4px solid #C9A24B;
+        background:#1E4B57;
+        color:#ffffff;
+        padding:24px;
+        text-align:center;
       ">
-        <b>پیام مشتری:</b>
-        <p style="white-space:pre-wrap">
-          ${data.message}
+
+        <h2 style="
+          margin:0;
+          font-size:20px;
+        ">
+          درخواست همکاری و استعلام قیمت جدید
+        </h2>
+
+        <p style="
+          margin:8px 0 0;
+          font-size:13px;
+          opacity:.9;
+        ">
+          ثبت شده از طریق وب‌سایت آیدیا هوم
         </p>
+
+      </div>
+
+
+      <div style="padding:25px;">
+
+        <table style="
+          width:100%;
+          border-collapse:collapse;
+          font-size:14px;
+        ">
+
+          <tr>
+            <td style="
+              padding:12px 0;
+              border-bottom:1px solid #e2e8f0;
+              font-weight:bold;
+              width:35%;
+            ">
+              نام و نام خانوادگی
+            </td>
+
+            <td style="
+              padding:12px 0;
+              border-bottom:1px solid #e2e8f0;
+            ">
+              ${escapeHtml(data.name)}
+            </td>
+          </tr>
+
+
+          <tr>
+            <td style="
+              padding:12px 0;
+              border-bottom:1px solid #e2e8f0;
+              font-weight:bold;
+            ">
+              شماره تماس
+            </td>
+
+            <td style="
+              padding:12px 0;
+              border-bottom:1px solid #e2e8f0;
+              direction:ltr;
+              text-align:right;
+            ">
+
+              <a
+                href="tel:${escapeHtml(data.phone)}"
+                style="
+                  color:#0284c7;
+                  text-decoration:none;
+                  font-weight:bold;
+                "
+              >
+                ${escapeHtml(data.phone)}
+              </a>
+
+            </td>
+          </tr>
+
+
+          ${
+            data.email
+              ? `
+          <tr>
+            <td style="
+              padding:12px 0;
+              border-bottom:1px solid #e2e8f0;
+              font-weight:bold;
+            ">
+              ایمیل
+            </td>
+
+            <td style="
+              padding:12px 0;
+              border-bottom:1px solid #e2e8f0;
+            ">
+              ${escapeHtml(data.email)}
+            </td>
+          </tr>
+          `
+              : ''
+          }
+
+
+          <tr>
+            <td style="
+              padding:12px 0;
+              border-bottom:1px solid #e2e8f0;
+              font-weight:bold;
+            ">
+              موضوع
+            </td>
+
+            <td style="
+              padding:12px 0;
+              border-bottom:1px solid #e2e8f0;
+            ">
+              ${escapeHtml(data.subject)}
+            </td>
+          </tr>
+
+
+          ${
+            data.productName
+              ? `
+          <tr>
+            <td style="
+              padding:12px 0;
+              border-bottom:1px solid #e2e8f0;
+              font-weight:bold;
+            ">
+              محصول
+            </td>
+
+            <td style="
+              padding:12px 0;
+              border-bottom:1px solid #e2e8f0;
+            ">
+              ${escapeHtml(data.productName)}
+            </td>
+          </tr>
+          `
+              : ''
+          }
+
+
+          ${
+            data.quantity
+              ? `
+          <tr>
+            <td style="
+              padding:12px 0;
+              border-bottom:1px solid #e2e8f0;
+              font-weight:bold;
+            ">
+              تعداد
+            </td>
+
+            <td style="
+              padding:12px 0;
+              border-bottom:1px solid #e2e8f0;
+            ">
+              ${escapeHtml(data.quantity)}
+            </td>
+          </tr>
+          `
+              : ''
+          }
+
+        </table>
+
+
+        <div style="
+          margin-top:25px;
+          padding:18px;
+          background:#f8fafc;
+          border-right:4px solid #C9A24B;
+          border-radius:6px;
+        ">
+
+          <div style="
+            font-weight:bold;
+            margin-bottom:10px;
+          ">
+            پیام مشتری
+          </div>
+
+          <div style="
+            white-space:pre-wrap;
+            line-height:1.8;
+          ">
+            ${escapeHtml(data.message)}
+          </div>
+
+        </div>
+
+      </div>
+
+
+      <div style="
+        background:#f1f5f9;
+        padding:15px;
+        text-align:center;
+        font-size:12px;
+        color:#64748b;
+      ">
+        این ایمیل به صورت خودکار از وب‌سایت آیدیا هوم ارسال شده است.
       </div>
 
     </div>
+
   </div>
-  `;
+
+</body>
+</html>
+`;
 
 
   try {
-
-    console.log("RESEND TEST", {
-      key: !!env.RESEND_API_KEY,
-      email: env.NOTIFICATION_EMAIL,
-      from: env.RESEND_FROM_EMAIL
+    console.log('[Resend] Preparing email', {
+      apiKeyExists: !!apiKey,
+      toEmail,
+      fromEmail,
     });
-
 
     const response = await fetch(
       'https://api.resend.com/emails',
       {
-        method:'POST',
+        method: 'POST',
 
-        headers:{
-          'Authorization':`Bearer ${apiKey}`,
-          'Content-Type':'application/json'
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
         },
 
-        body:JSON.stringify({
-
+        body: JSON.stringify({
           from: fromEmail,
-
-          to:[
-            toEmail
-          ],
-
+          to: [toEmail],
           subject: emailSubject,
-
-          html
-
-        })
-      }
-    );
-
-        body:JSON.stringify({
-
-          from:fromEmail,
-
-          to:[
-            toEmail
-          ],
-
-          subject:
-          `درخواست جدید سایت - ${data.name}`,
-
-          html
-
-        })
+          html: htmlBody,
+        }),
       }
     );
 
 
-    if(!response.ok){
+    const responseText = await response.text();
 
-      const error =
-        await response.text();
 
+    if (!response.ok) {
       console.error(
         '[Resend Error]',
-        error
+        response.status,
+        responseText
       );
 
+      return;
     }
 
 
-  } catch(error){
+    console.log(
+      '[Resend] Email sent successfully',
+      responseText
+    );
+
+  } catch (error) {
 
     console.error(
-      '[Resend Failed]',
+      '[Resend Network Error]',
       error
     );
 
   }
-
 }
 
 
+/**
+ * Escape user-provided text before inserting it into HTML email.
+ */
+function escapeHtml(value: unknown): string {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
 
-export const onRequestGet: PagesFunction<Env> = async (context) => {
+
+/**
+ * GET /api/contact
+ * Admin only.
+ */
+export const onRequestGet: PagesFunction<Env> = async (
+  context
+) => {
 
   const { request, env } = context;
 
 
-  const auth = await requireAdmin(request, env);
+  const auth = await requireAdmin(
+    request,
+    env
+  );
+
 
   if (!auth.authenticated) {
-
     return auth.errorResponse!;
-
   }
 
 
@@ -184,120 +390,139 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
     return new Response(
       JSON.stringify(messages),
       {
-        status:200,
+        status: 200,
 
-        headers:{
-          'Content-Type':'application/json',
-          'Cache-Control':'no-store',
+        headers: {
+          'Content-Type':
+            'application/json',
+
+          'Cache-Control':
+            'no-store',
+
           'X-Database-Provider':
-          getDatabaseProviderName(env)
-        }
+            getDatabaseProviderName(env),
+        },
       }
     );
 
-
-  } catch(err:any){
+  } catch (err: any) {
 
     return new Response(
       JSON.stringify({
         error:
-        err.message ||
-        'خطا در دریافت پیام‌ها'
+          err?.message ||
+          'خطا در دریافت پیام‌ها از سرور ابری',
       }),
       {
-        status:500,
-        headers:{
-          'Content-Type':'application/json'
-        }
+        status: 500,
+
+        headers: {
+          'Content-Type':
+            'application/json',
+        },
       }
     );
 
   }
-
 };
 
 
+/**
+ * POST /api/contact
+ * Public customer form.
+ */
+export const onRequestPost: PagesFunction<Env> = async (
+  context
+) => {
 
-export const onRequestPost: PagesFunction<Env> = async (context)=>{
-
-  const {
-    request,
-    env
-  } = context;
+  const { request, env } = context;
 
 
   try {
 
-
     const body =
-      await request.json<any>()
-      .catch(()=>null);
+      await request
+        .json<any>()
+        .catch(() => null);
 
 
-
-    if(!body){
-
-      return new Response(
-        JSON.stringify({
-          error:'اطلاعات ارسالی نامعتبر است.'
-        }),
-        {
-          status:400,
-          headers:{
-            'Content-Type':'application/json'
-          }
-        }
-      );
-
-    }
-
-
-
-    const name =
-      (body.name || '').trim();
-
-
-    const phone =
-      (body.phone || '').trim();
-
-
-    const subject =
-      (body.subject || '').trim();
-
-
-    const message =
-      (body.message || '').trim();
-
-
-    const email =
-      (body.email || '').trim() || undefined;
-
-
-
-    if(
-      !name ||
-      !phone ||
-      !subject ||
-      !message
-    ){
+    if (!body) {
 
       return new Response(
         JSON.stringify({
           error:
-          'لطفاً تمامی فیلدهای الزامی را تکمیل کنید.'
+            'اطلاعات ارسالی نامعتبر است.',
         }),
         {
-          status:400,
-          headers:{
-            'Content-Type':'application/json'
-          }
+          status: 400,
+
+          headers: {
+            'Content-Type':
+              'application/json',
+          },
         }
       );
 
     }
 
 
+    const name =
+      String(body.name || '').trim();
 
+    const phone =
+      String(body.phone || '').trim();
+
+    const subject =
+      String(body.subject || '').trim();
+
+    const message =
+      String(body.message || '').trim();
+
+    const email =
+      String(body.email || '').trim() ||
+      undefined;
+
+
+    if (
+      !name ||
+      !phone ||
+      !subject ||
+      !message
+    ) {
+
+      return new Response(
+        JSON.stringify({
+          error:
+            'لطفاً تمامی فیلدهای الزامی (نام، شماره تماس، موضوع و پیام) را تکمیل فرمایید.',
+        }),
+        {
+          status: 400,
+
+          headers: {
+            'Content-Type':
+              'application/json',
+          },
+        }
+      );
+
+    }
+
+
+    const productName =
+      body.productName
+        ? String(body.productName).trim()
+        : undefined;
+
+
+    const quantity =
+      body.quantity
+        ? String(body.quantity).trim()
+        : undefined;
+
+
+    /*
+     * 1. Save the customer's request.
+     */
     const newMsg =
       await saveContactMessage(
         env,
@@ -307,17 +532,18 @@ export const onRequestPost: PagesFunction<Env> = async (context)=>{
           email,
           subject,
           message,
-          productName:
-          body.productName,
-
-          quantity:
-          body.quantity
+          productName,
+          quantity,
         }
       );
 
 
-
-    // ارسال ایمیل بعد از ذخیره موفق
+    /*
+     * 2. Send email notification.
+     *
+     * waitUntil keeps the background operation alive
+     * without making the customer wait for the email.
+     */
     const emailPromise =
       sendResendNotification(
         env,
@@ -327,89 +553,85 @@ export const onRequestPost: PagesFunction<Env> = async (context)=>{
           email,
           subject,
           message,
-          productName:
-          body.productName,
-
-          quantity:
-          body.quantity
+          productName,
+          quantity,
         }
       );
 
 
-    if(context.waitUntil){
+    if (context.waitUntil) {
 
       context.waitUntil(
         emailPromise
       );
 
-    }else{
+    } else {
 
       await emailPromise;
 
     }
 
 
-
-
+    /*
+     * 3. Return success to the website.
+     */
     return new Response(
       JSON.stringify({
-
-        success:true,
+        success: true,
 
         message:
-        'پیام شما ثبت شد و کارشناسان به زودی تماس خواهند گرفت.',
+          'پیام و استعلام شما با موفقیت ثبت شد و کارشناسان کارخانه به زودی با شما تماس خواهند گرفت.',
 
-        id:newMsg.id
-
+        id: newMsg.id,
       }),
       {
-        status:201,
+        status: 201,
 
-        headers:{
-          'Content-Type':'application/json'
-        }
-
+        headers: {
+          'Content-Type':
+            'application/json',
+        },
       }
     );
 
 
+  } catch (err: any) {
 
-  }catch(err:any){
+    console.error(
+      '[Contact API Error]',
+      err
+    );
 
 
     return new Response(
-
       JSON.stringify({
-
         error:
-        err.message ||
-        'خطا در ثبت پیام'
-
+          err?.message ||
+          'خطا در ثبت پیام در سرور',
       }),
-
       {
-        status:500,
+        status: 500,
 
-        headers:{
-          'Content-Type':'application/json'
-        }
+        headers: {
+          'Content-Type':
+            'application/json',
+        },
       }
-
     );
 
   }
-
 };
 
 
+/**
+ * PUT /api/contact
+ * Admin only - update message status.
+ */
+export const onRequestPut: PagesFunction<Env> = async (
+  context
+) => {
 
-export const onRequestPut: PagesFunction<Env> = async (context)=>{
-
-  const {
-    request,
-    env
-  } = context;
-
+  const { request, env } = context;
 
 
   const auth =
@@ -419,44 +641,44 @@ export const onRequestPut: PagesFunction<Env> = async (context)=>{
     );
 
 
-  if(!auth.authenticated)
+  if (!auth.authenticated) {
     return auth.errorResponse!;
+  }
 
 
-
-  try{
-
+  try {
 
     const body =
-      await request.json<{
-        id:string;
-        status:'read'|'unread'
-      }>()
-      .catch(()=>null);
+      await request
+        .json<{
+          id: string;
+          status: 'read' | 'unread';
+        }>()
+        .catch(() => null);
 
 
-
-    if(
+    if (
       !body ||
       !body.id ||
       !body.status
-    ){
+    ) {
 
       return new Response(
         JSON.stringify({
           error:
-          'شناسه پیام و وضعیت الزامی است.'
+            'شناسه پیام و وضعیت الزامی است.',
         }),
         {
-          status:400,
-          headers:{
-            'Content-Type':'application/json'
-          }
+          status: 400,
+
+          headers: {
+            'Content-Type':
+              'application/json',
+          },
         }
       );
 
     }
-
 
 
     const updated =
@@ -467,43 +689,38 @@ export const onRequestPut: PagesFunction<Env> = async (context)=>{
       );
 
 
-
     return new Response(
       JSON.stringify({
-        success:updated
+        success: updated,
       }),
       {
-        status:200,
-        headers:{
-          'Content-Type':'application/json'
-        }
+        status: 200,
+
+        headers: {
+          'Content-Type':
+            'application/json',
+        },
       }
     );
 
 
-  }catch(err:any){
-
+  } catch (err: any) {
 
     return new Response(
-
       JSON.stringify({
-
         error:
-        err.message ||
-        'خطا در بروزرسانی پیام'
-
+          err?.message ||
+          'خطا در به‌روزرسانی پیام',
       }),
-
       {
-        status:500,
+        status: 500,
 
-        headers:{
-          'Content-Type':'application/json'
-        }
+        headers: {
+          'Content-Type':
+            'application/json',
+        },
       }
-
     );
 
   }
-
 };
