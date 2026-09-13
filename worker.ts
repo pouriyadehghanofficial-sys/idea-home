@@ -73,9 +73,9 @@ async function callHandler(
     env,
     params,
 
-    waitUntil: (promise: Promise<any>) => {
-      void promise;
-    },
+  waitUntil: (promise: Promise<any>) => {
+    return promise;
+  },
 
     next: () => env.ASSETS.fetch(request),
   });
