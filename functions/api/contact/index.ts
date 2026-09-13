@@ -84,6 +84,13 @@ async function sendResendNotification(
 
   try {
 
+    console.log("RESEND TEST", {
+      key: !!env.RESEND_API_KEY,
+      email: env.NOTIFICATION_EMAIL,
+      from: env.RESEND_FROM_EMAIL
+    });
+
+
     const response = await fetch(
       'https://api.resend.com/emails',
       {
@@ -93,6 +100,22 @@ async function sendResendNotification(
           'Authorization':`Bearer ${apiKey}`,
           'Content-Type':'application/json'
         },
+
+        body:JSON.stringify({
+
+          from: fromEmail,
+
+          to:[
+            toEmail
+          ],
+
+          subject: emailSubject,
+
+          html
+
+        })
+      }
+    );
 
         body:JSON.stringify({
 
