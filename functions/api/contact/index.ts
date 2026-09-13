@@ -21,8 +21,10 @@ interface ContactFormData {
 
 /**
  * Send a notification email through Resend.
- * Email failure must NOT prevent the customer's form submission
- * from being saved successfully.
+ *
+ * IMPORTANT:
+ * This function throws when Resend fails.
+ * The caller must await it before returning success.
  */
 async function sendResendNotification(
   env: Env,
@@ -31,9 +33,16 @@ async function sendResendNotification(
   const apiKey = env.RESEND_API_KEY;
   const toEmail = env.NOTIFICATION_EMAIL;
 
-  if (!apiKey || !toEmail) {
-    console.error('[Resend] Missing RESEND_API_KEY or NOTIFICATION_EMAIL');
-    return;
+  if (!apiKey) {
+    throw new Error(
+      'RESEND_API_KEY در تنظیمات Cloudflare تعریف نشده است.'
+    );
+  }
+
+  if (!toEmail) {
+    throw new Error(
+      'NOTIFICATION_EMAIL در تنظیمات Cloudflare تعریف نشده است.'
+    );
   }
 
   const fromEmail =
@@ -92,7 +101,6 @@ async function sendResendNotification(
 
       </div>
 
-
       <div style="padding:25px;">
 
         <table style="
@@ -118,7 +126,6 @@ async function sendResendNotification(
               ${escapeHtml(data.name)}
             </td>
           </tr>
-
 
           <tr>
             <td style="
@@ -150,7 +157,6 @@ async function sendResendNotification(
             </td>
           </tr>
 
-
           ${
             data.email
               ? `
@@ -174,7 +180,6 @@ async function sendResendNotification(
               : ''
           }
 
-
           <tr>
             <td style="
               padding:12px 0;
@@ -191,7 +196,6 @@ async function sendResendNotification(
               ${escapeHtml(data.subject)}
             </td>
           </tr>
-
 
           ${
             data.productName
@@ -215,7 +219,6 @@ async function sendResendNotification(
           `
               : ''
           }
-
 
           ${
             data.quantity
@@ -241,7 +244,6 @@ async function sendResendNotification(
           }
 
         </table>
-
 
         <div style="
           margin-top:25px;
@@ -269,7 +271,6 @@ async function sendResendNotification(
 
       </div>
 
-
       <div style="
         background:#f1f5f9;
         padding:15px;
@@ -288,10 +289,8 @@ async function sendResendNotification(
 </html>
 `;
 
-
   try {
-    console.log('[Resend] Preparing email', {
-      apiKeyExists: !!apiKey,
+    console.log('[Resend] Sending notification email', {
       toEmail,
       fromEmail,
     });
@@ -315,9 +314,7 @@ async function sendResendNotification(
       }
     );
 
-
     const responseText = await response.text();
-
 
     if (!response.ok) {
       console.error(
@@ -326,22 +323,40 @@ async function sendResendNotification(
         responseText
       );
 
-      return;
+      throw new Error(
+        `Resend API خطا داد (${response.status}).`
+      );
     }
 
+    let resendResult: any = null;
+
+    try {
+      resendResult = responseText
+        ? JSON.parse(responseText)
+        : null;
+    } catch {
+      // Resend normally returns JSON.
+      // A successful HTTP status is still considered successful.
+    }
 
     console.log(
-      '[Resend] Email sent successfully',
-      responseText
+      '[Resend] Email accepted successfully',
+      {
+        id: resendResult?.id || null,
+      }
     );
 
   } catch (error) {
-
     console.error(
-      '[Resend Network Error]',
-      error
+      '[Resend Error]',
+      error instanceof Error
+        ? error.message
+        : error
     );
 
+    throw error instanceof Error
+      ? error
+      : new Error('ارسال ایمیل از طریق Resend انجام نشد.');
   }
 }
 
@@ -369,23 +384,19 @@ export const onRequestGet: PagesFunction<Env> = async (
 
   const { request, env } = context;
 
-
   const auth = await requireAdmin(
     request,
     env
   );
 
-
   if (!auth.authenticated) {
     return auth.errorResponse!;
   }
-
 
   try {
 
     const messages =
       await getContactMessages(env);
-
 
     return new Response(
       JSON.stringify(messages),
@@ -437,14 +448,12 @@ export const onRequestPost: PagesFunction<Env> = async (
 
   const { request, env } = context;
 
-
   try {
 
     const body =
       await request
         .json<any>()
         .catch(() => null);
-
 
     if (!body) {
 
@@ -465,7 +474,6 @@ export const onRequestPost: PagesFunction<Env> = async (
 
     }
 
-
     const name =
       String(body.name || '').trim();
 
@@ -481,7 +489,6 @@ export const onRequestPost: PagesFunction<Env> = async (
     const email =
       String(body.email || '').trim() ||
       undefined;
-
 
     if (
       !name ||
@@ -507,12 +514,10 @@ export const onRequestPost: PagesFunction<Env> = async (
 
     }
 
-
     const productName =
       body.productName
         ? String(body.productName).trim()
         : undefined;
-
 
     const quantity =
       body.quantity
@@ -539,41 +544,29 @@ export const onRequestPost: PagesFunction<Env> = async (
 
 
     /*
-     * 2. Send email notification.
+     * 2. Send email notification and WAIT for Resend.
      *
-     * waitUntil keeps the background operation alive
-     * without making the customer wait for the email.
+     * IMPORTANT:
+     * We intentionally do NOT use context.waitUntil()
+     * here because the API must know whether Resend
+     * actually accepted the email before returning success.
      */
-    const emailPromise =
-      sendResendNotification(
-        env,
-        {
-          name,
-          phone,
-          email,
-          subject,
-          message,
-          productName,
-          quantity,
-        }
-      );
-
-
-    if (context.waitUntil) {
-
-      context.waitUntil(
-        emailPromise
-      );
-
-    } else {
-
-      await emailPromise;
-
-    }
+    await sendResendNotification(
+      env,
+      {
+        name,
+        phone,
+        email,
+        subject,
+        message,
+        productName,
+        quantity,
+      }
+    );
 
 
     /*
-     * 3. Return success to the website.
+     * 3. Only return success after Resend succeeds.
      */
     return new Response(
       JSON.stringify({
@@ -594,7 +587,6 @@ export const onRequestPost: PagesFunction<Env> = async (
       }
     );
 
-
   } catch (err: any) {
 
     console.error(
@@ -602,12 +594,13 @@ export const onRequestPost: PagesFunction<Env> = async (
       err
     );
 
-
     return new Response(
       JSON.stringify({
+        success: false,
+
         error:
           err?.message ||
-          'خطا در ثبت پیام در سرور',
+          'خطا در ثبت پیام یا ارسال ایمیل. لطفاً دوباره تلاش کنید.',
       }),
       {
         status: 500,
@@ -633,18 +626,15 @@ export const onRequestPut: PagesFunction<Env> = async (
 
   const { request, env } = context;
 
-
   const auth =
     await requireAdmin(
       request,
       env
     );
 
-
   if (!auth.authenticated) {
     return auth.errorResponse!;
   }
-
 
   try {
 
@@ -655,7 +645,6 @@ export const onRequestPut: PagesFunction<Env> = async (
           status: 'read' | 'unread';
         }>()
         .catch(() => null);
-
 
     if (
       !body ||
@@ -680,14 +669,12 @@ export const onRequestPut: PagesFunction<Env> = async (
 
     }
 
-
     const updated =
       await updateMessageStatus(
         env,
         body.id,
         body.status
       );
-
 
     return new Response(
       JSON.stringify({
@@ -702,7 +689,6 @@ export const onRequestPut: PagesFunction<Env> = async (
         },
       }
     );
-
 
   } catch (err: any) {
 
