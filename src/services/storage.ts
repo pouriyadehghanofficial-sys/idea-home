@@ -588,80 +588,162 @@ class StorageService {
       const res = await fetch('/api/contact', {
         headers: this.getAuthHeaders()
       });
+  
       const contentType = res.headers.get('content-type') || '';
+  
       if (res.ok && contentType.includes('application/json')) {
         const data = await res.json();
+  
         if (Array.isArray(data)) {
           localStorage.setItem(LOCAL_MESSAGES_KEY, JSON.stringify(data));
           return data;
         }
       }
-    } catch {}
-
+    } catch {
+      // Fall back to local storage if the API is unavailable.
+    }
+  
     const local = localStorage.getItem(LOCAL_MESSAGES_KEY);
+  
     if (local) {
       try {
         const parsed = JSON.parse(local);
-        if (Array.isArray(parsed)) return parsed;
-      } catch {}
+  
+        if (Array.isArray(parsed)) {
+          return parsed;
+        }
+      } catch {
+        // Ignore invalid local storage data.
+      }
     }
-
-    localStorage.setItem(LOCAL_MESSAGES_KEY, JSON.stringify(INITIAL_MESSAGES));
+  
+    localStorage.setItem(
+      LOCAL_MESSAGES_KEY,
+      JSON.stringify(INITIAL_MESSAGES)
+    );
+  
     return INITIAL_MESSAGES;
   }
-
-  async submitMessage(message: Omit<ContactMessage, 'id' | 'date' | 'status'>): Promise<ContactMessage> {
+  
+  async submitMessage(
+    message: Omit<ContactMessage, 'id' | 'date' | 'status'>
+  ): Promise<ContactMessage> {
+    const res = await fetch('/api/contact', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(message)
+    });
+  
+    const contentType = res.headers.get('content-type') || '';
+  
+    let data: any = null;
+  
+    if (contentType.includes('application/json')) {
+      try {
+        data = await res.json();
+      } catch {
+        data = null;
+      }
+    } else {
+      try {
+        const text = await res.text();
+        data = text ? { message: text } : null;
+      } catch {
+        data = null;
+      }
+    }
+  
+    // Never report success when the API request failed.
+    if (!res.ok) {
+      throw new Error(
+        data?.message ||
+        data?.error ||
+        `ارسال پیام ناموفق بود. کد خطا: ${res.status}`
+      );
+    }
+  
     const newMessage: ContactMessage = {
       ...message,
-      id: `msg_${Date.now()}`,
+      id: data?.id || `msg_${Date.now()}`,
       date: new Date().toLocaleDateString('fa-IR'),
       status: 'unread'
     };
-
-    try {
-      const res = await fetch('/api/contact', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(message)
-      });
-      const contentType = res.headers.get('content-type') || '';
-      if (res.ok && contentType.includes('application/json')) {
-        const data = await res.json();
-        if (data?.id) newMessage.id = data.id;
+  
+    // Keep local storage synchronized without making the user-facing
+    // submission depend on a second API request.
+    const local = localStorage.getItem(LOCAL_MESSAGES_KEY);
+  
+    let all: ContactMessage[] = [];
+  
+    if (local) {
+      try {
+        const parsed = JSON.parse(local);
+  
+        if (Array.isArray(parsed)) {
+          all = parsed;
+        }
+      } catch {
+        all = [];
       }
-    } catch {}
-
-    const all = await this.getMessages();
-    const updated = [newMessage, ...all];
-    localStorage.setItem(LOCAL_MESSAGES_KEY, JSON.stringify(updated));
+    }
+  
+    const updated = [
+      newMessage,
+      ...all.filter((m) => m.id !== newMessage.id)
+    ];
+  
+    localStorage.setItem(
+      LOCAL_MESSAGES_KEY,
+      JSON.stringify(updated)
+    );
+  
     return newMessage;
   }
-
+  
   async markMessageAsRead(id: string): Promise<void> {
-    try {
-      await this.fetchWithAuth(`/api/contact/${id}`, {
-        method: 'PUT',
-        body: JSON.stringify({ status: 'read' })
-      });
-    } catch {}
-
+    const res = await this.fetchWithAuth(`/api/contact/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify({ status: 'read' })
+    });
+  
+    if (!res.ok) {
+      throw new Error(`Failed to mark message as read (${res.status})`);
+    }
+  
     const all = await this.getMessages();
-    const updated = all.map((m) => (m.id === id ? { ...m, status: 'read' as const } : m));
-    localStorage.setItem(LOCAL_MESSAGES_KEY, JSON.stringify(updated));
+  
+    const updated = all.map((m) =>
+      m.id === id
+        ? { ...m, status: 'read' as const }
+        : m
+    );
+  
+    localStorage.setItem(
+      LOCAL_MESSAGES_KEY,
+      JSON.stringify(updated)
+    );
   }
-
+  
   async deleteMessage(id: string): Promise<void> {
-    try {
-      await this.fetchWithAuth(`/api/contact/${id}`, {
-        method: 'DELETE'
-      });
-    } catch {}
-
+    const res = await this.fetchWithAuth(`/api/contact/${id}`, {
+      method: 'DELETE'
+    });
+  
+    if (!res.ok) {
+      throw new Error(`Failed to delete message (${res.status})`);
+    }
+  
     const all = await this.getMessages();
+  
     const updated = all.filter((m) => m.id !== id);
-    localStorage.setItem(LOCAL_MESSAGES_KEY, JSON.stringify(updated));
+  
+    localStorage.setItem(
+      LOCAL_MESSAGES_KEY,
+      JSON.stringify(updated)
+    );
   }
-
   // --- 6. FILE UPLOADS (High-Speed Compressed Upload with ImageKit & Local Resilient Fallback) ---
   async uploadFile(
     file: File,
