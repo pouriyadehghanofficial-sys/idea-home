@@ -189,9 +189,26 @@ function getInitialLanguage(): SupportedLanguage {
 export const ContentProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [language, setLanguageState] = useState<SupportedLanguage>(getInitialLanguage);
 
-  // Synchronous cache-first bootstrap using ideahome_content_cache (or fallback to DEFAULT_SITE_CONTENT)
-  const [content, setContent] = useState<Record<string, string>>(() => contentRepository.getInitialContentSync());
-  const [draftContent, setDraftContent] = useState<Record<string, string>>(() => contentRepository.getInitialContentSync());
+  // Synchronous cache check: do we have a valid cached version from a previous visit?
+  const hasValidCache = contentRepository.hasCacheSync();
+
+  // If valid cache exists, use it immediately on frame 1; otherwise wait for server content
+  const [content, setContent] = useState<Record<string, string>>(() => {
+    if (hasValidCache) {
+      return contentRepository.getInitialContentSync();
+    }
+    return {};
+  });
+
+  const [draftContent, setDraftContent] = useState<Record<string, string>>(() => {
+    if (hasValidCache) {
+      return contentRepository.getInitialContentSync();
+    }
+    return {};
+  });
+
+  // isReady is true immediately if valid cache exists; false if we must await the server
+  const [isReady, setIsReady] = useState<boolean>(hasValidCache);
   const [isEditorMode, setIsEditorMode] = useState<boolean>(false);
   const [activeEditId, setActiveEditId] = useState<string | null>(null);
   const [hoveredEditId, setHoveredEditId] = useState<string | null>(null);
@@ -221,21 +238,54 @@ export const ContentProvider: React.FC<{ children: React.ReactNode }> = ({ child
     }
   }, []);
 
-  // Background check for fresh remote updates from server
-  // Background fetch silently updates the browser cache for the NEXT session
-  // To strictly prevent Flash of Default Content (FODC), visible React content is NEVER
-  // mutated mid-session in the background.
+  // Content loading effect:
+  // - If cache was missing: fetch from server, populate state, then mark isReady = true
+  // - If cache was present: fetch in background to refresh cache for next time, without mutating visible state
   useEffect(() => {
     let isMounted = true;
+
+    // Safety timeout: if network is down/offline, unblock after 2000ms using defaults
+    const safetyTimer = setTimeout(() => {
+      if (isMounted && !isReady) {
+        const fallback = contentRepository.getInitialContentSync();
+        setContent(fallback);
+        setDraftContent(fallback);
+        setIsReady(true);
+      }
+    }, 2000);
+
     contentRepository.getSiteContent().then((loaded) => {
-      // Background fetch updates localStorage/IDB inside contentRepository.getSiteContent()
-      // We do not mutate visible React state here to eliminate any possibility of FOD.
+      if (!isMounted) return;
+      clearTimeout(safetyTimer);
+
+      if (loaded && typeof loaded === 'object' && Object.keys(loaded).length > 0) {
+        if (!hasValidCache) {
+          // If we had no cache, populate state and reveal children for the first time
+          setContent(loaded);
+          setDraftContent(loaded);
+          setIsReady(true);
+        }
+      } else if (!isReady) {
+        const fallback = contentRepository.getInitialContentSync();
+        setContent(fallback);
+        setDraftContent(fallback);
+        setIsReady(true);
+      }
+    }).catch(() => {
+      if (isMounted && !isReady) {
+        clearTimeout(safetyTimer);
+        const fallback = contentRepository.getInitialContentSync();
+        setContent(fallback);
+        setDraftContent(fallback);
+        setIsReady(true);
+      }
     });
 
     return () => {
       isMounted = false;
+      clearTimeout(safetyTimer);
     };
-  }, []);
+  }, [hasValidCache, isReady]);
 
   // Determine if there are unsaved changes
   const hasUnsavedChanges = useMemo(() => {
@@ -532,7 +582,7 @@ export const ContentProvider: React.FC<{ children: React.ReactNode }> = ({ child
       isContainerDeleted,
       toggleContainerDeleted,
       setContainerDeleted,
-      isContentReady: true,
+      isContentReady: isReady,
     }),
     [
       content,
@@ -560,8 +610,20 @@ export const ContentProvider: React.FC<{ children: React.ReactNode }> = ({ child
       isContainerDeleted,
       toggleContainerDeleted,
       setContainerDeleted,
+      isReady,
     ]
   );
+
+  if (!isReady) {
+    return (
+      <div className="min-h-screen bg-[#1E4B57] flex items-center justify-center text-[#EDEAE4]" dir="rtl">
+        <div className="flex items-center gap-3">
+          <div className="w-6 h-6 border-2 border-[#D4AF37] border-t-transparent rounded-full animate-spin" />
+          <span className="font-vazir text-sm opacity-80">در حال بارگذاری...</span>
+        </div>
+      </div>
+    );
+  }
 
   return <ContentContext.Provider value={value}>{children}</ContentContext.Provider>;
 };
