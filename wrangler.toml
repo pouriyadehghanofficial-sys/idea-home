@@ -1,36 +1,46 @@
 # ====================================================================
 # Cloudflare Pages Configuration: IDEA HOME / Arasteh Industrial
-# Native Serverless Edge Stack (Pages + Functions + D1 + R2)
+# Pages + Functions + KV + ImageKit
 # ====================================================================
 
 name = "ideahome-production"
-compatibility_date = "2024-09-01"
+
+compatibility_date = "2026-09-22"
+
+# خروجی Vite
 pages_build_output_dir = "dist"
 
 
-# 2. Media Storage: ImageKit Signed Direct Uploads
-# The application uploads media assets directly to ImageKit Media Library using HMAC-SHA1 signatures.
-# Assets are served globally from ImageKit CDN.
-# Configure ImageKit credentials via Wrangler CLI or Cloudflare Dashboard:
-#   npx wrangler pages secret put IMAGEKIT_PUBLIC_KEY
-#   npx wrangler pages secret put IMAGEKIT_PRIVATE_KEY
-#   npx wrangler pages secret put IMAGEKIT_URL_ENDPOINT
+# ------------------------------------------------------------
+# Environment Variables
+# ------------------------------------------------------------
 
-# 3. Environment Variables (Non-sensitive)
 [vars]
+
 ENVIRONMENT = "production"
 
-# Note on Secrets:
-# Sensitive credentials MUST NOT be stored in this file.
-# Set them in Cloudflare Dashboard or via Wrangler CLI:
-#   npx wrangler pages secret put ADMIN_USERNAME
-#   npx wrangler pages secret put ADMIN_PASSWORD
-#   npx wrangler pages secret put JWT_SECRET
-#   npx wrangler pages secret put IMAGEKIT_PUBLIC_KEY
-#   npx wrangler pages secret put IMAGEKIT_PRIVATE_KEY
-#   npx wrangler pages secret put IMAGEKIT_URL_ENDPOINT
 
-# 4. Persistent Cloud Storage: Cloudflare KV
+# ------------------------------------------------------------
+# Cloudflare KV Storage
+# ------------------------------------------------------------
+
 [[kv_namespaces]]
+
 binding = "KV"
+
 id = "815c294b7bb74dc1997fb51a914c0d6d"
+
+
+# ------------------------------------------------------------
+# Secrets are NOT stored here
+#
+# Add them from Cloudflare Dashboard:
+#
+# ADMIN_USERNAME
+# ADMIN_PASSWORD
+# JWT_SECRET
+# IMAGEKIT_PUBLIC_KEY
+# IMAGEKIT_PRIVATE_KEY
+# IMAGEKIT_URL_ENDPOINT
+#
+# ------------------------------------------------------------
