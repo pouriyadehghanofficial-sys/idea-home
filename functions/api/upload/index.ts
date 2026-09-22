@@ -94,18 +94,18 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
     const isCatalog = fileName.toLowerCase().includes('catalog');
     const folder = requestedFolder || (isPrice ? '/ideahome/price-list' : isCatalog ? '/ideahome/catalog' : '/ideahome/uploads');
 
-    // Convert file to base64 for seamless, stream-safe upload to ImageKit
-    const arrayBuffer = await (file as Blob).arrayBuffer();
-    const buffer = new Uint8Array(arrayBuffer);
-    let binary = '';
-    const chunkSize = 8192;
-    for (let i = 0; i < buffer.length; i += chunkSize) {
-      binary += String.fromCharCode.apply(null, Array.from(buffer.subarray(i, i + chunkSize)));
-    }
-    const base64Data = btoa(binary);
-
+    // Upload binary file directly to ImageKit
+    // Avoid base64 conversion because it increases memory usage and CPU time
+    
     const uploadForm = new FormData();
-    uploadForm.append('file', base64Data);
+    
+    uploadForm.append(
+      'file',
+      file instanceof Blob
+        ? file
+        : new Blob([await (file as any).arrayBuffer()])
+    );
+    
     uploadForm.append('fileName', fileName);
     uploadForm.append('folder', folder);
     uploadForm.append('useUniqueFileName', 'true');
