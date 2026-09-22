@@ -554,51 +554,56 @@ export default {
     // =========================
     // UPLOAD
     // =========================
-
+    
     if (path === "/api/upload") {
-
-
-      if (
-        method === "OPTIONS" &&
-        upload.onRequestOptions
-      ) {
-        return callHandler(
-          upload.onRequestOptions,
-          request,
-          env
-        );
+    
+      // CORS preflight
+      if (method === "OPTIONS") {
+    
+        return new Response(null, {
+          status: 204,
+          headers: {
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS",
+            "Access-Control-Allow-Headers": "*",
+            "Access-Control-Max-Age": "86400",
+          },
+        });
+    
       }
-
-
+    
+    
       if (
         method === "POST" &&
         upload.onRequestPost
       ) {
+    
         return callHandler(
           upload.onRequestPost,
           request,
           env
         );
+    
       }
-
-
+    
+    
       if (
         method === "DELETE" &&
         upload.onRequestDelete
       ) {
+    
         return callHandler(
           upload.onRequestDelete,
           request,
           env
         );
+    
       }
-
-
+    
+    
       return apiNotFound(path);
-
+    
     }
-
-
     // =========================
     // UPLOAD SIGN
     // =========================
