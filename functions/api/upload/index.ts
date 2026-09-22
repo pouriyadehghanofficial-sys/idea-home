@@ -76,7 +76,10 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
       file.name ||
       'IdeaHome-Catalog.pdf';
 
-    const folder = '/ideahome/catalog';
+    const requestedFolder = incoming.get('folder') as string;
+    const isPrice = fileName.toLowerCase().includes('price');
+    const isCatalog = fileName.toLowerCase().includes('catalog');
+    const folder = requestedFolder || (isPrice ? '/ideahome/price-list' : isCatalog ? '/ideahome/catalog' : '/ideahome/uploads');
 
     const uploadForm = new FormData();
     uploadForm.append('file', file);
