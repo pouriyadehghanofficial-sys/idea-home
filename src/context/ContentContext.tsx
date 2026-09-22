@@ -174,9 +174,8 @@ interface ContentContextType {
   toggleContainerDeleted: (id: string) => void;
   setContainerDeleted: (id: string, deleted: boolean) => void;
 
-  // NEW: whether real (server) content has been resolved at least once.
-  // false only on a first-ever visit with no local cache, while the
-  // network request is in flight.
+  // Whether cached/server content has been resolved enough for the site to render.
+  // Returning visitors can render immediately from local cache.
   isContentReady: boolean;
 }
 
@@ -194,25 +193,41 @@ function getInitialLanguage(): SupportedLanguage {
   return 'fa';
 }
 
-// NEW: read the last known-good content from localStorage synchronously,
+// Read the last known-good content from localStorage synchronously,
 // so the very first render already has the real text instead of defaults.
 function readCachedContent(): Record<string, string> | null {
   if (typeof window === 'undefined') return null;
+
   try {
     const raw = localStorage.getItem(CONTENT_STORAGE_KEY);
     if (!raw) return null;
+
     const parsed = JSON.parse(raw);
-    if (parsed && parsed.v === CONTENT_CACHE_VERSION && parsed.data && typeof parsed.data === 'object') {
+
+    if (
+      parsed &&
+      parsed.v === CONTENT_CACHE_VERSION &&
+      parsed.data &&
+      typeof parsed.data === 'object'
+    ) {
       return parsed.data;
     }
   } catch {}
+
   return null;
 }
 
 function writeCachedContent(data: Record<string, string>) {
   if (typeof window === 'undefined') return;
+
   try {
-    localStorage.setItem(CONTENT_STORAGE_KEY, JSON.stringify({ v: CONTENT_CACHE_VERSION, data }));
+    localStorage.setItem(
+      CONTENT_STORAGE_KEY,
+      JSON.stringify({
+        v: CONTENT_CACHE_VERSION,
+        data,
+      })
+    );
   } catch {}
 }
 
@@ -221,23 +236,30 @@ function getInitialContent(): Record<string, string> {
   return cached ?? { ...DEFAULT_SITE_CONTENT };
 }
 
-export const ContentProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [language, setLanguageState] = useState<SupportedLanguage>(getInitialLanguage);
-  // CHANGED: initial state now comes from cache-first helper instead of
-  // always starting from DEFAULT_SITE_CONTENT.
-  const [content, setContent] = useState<Record<string, string>>(getInitialContent);
-  const [draftContent, setDraftContent] = useState<Record<string, string>>(getInitialContent);
+export const ContentProvider: React.FC<{ children: React.ReactNode }> = ({
+  children,
+}) => {
+  const [language, setLanguageState] =
+    useState<SupportedLanguage>(getInitialLanguage);
+
+  // Cache-first initial state.
+  const [content, setContent] =
+    useState<Record<string, string>>(getInitialContent);
+
+  const [draftContent, setDraftContent] =
+    useState<Record<string, string>>(getInitialContent);
+
   const [isEditorMode, setIsEditorMode] = useState<boolean>(false);
   const [activeEditId, setActiveEditId] = useState<string | null>(null);
   const [hoveredEditId, setHoveredEditId] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState<boolean>(false);
-  // IMPORTANT:
-  // Never mark content as ready just because a local cache exists.
-  // The cache can be older than the server and would cause:
-  //   old text -> first paint -> server text -> second paint
-  // Instead, the page stays behind the splash screen until the server
-  // content has been resolved. The cache is only used as an offline fallback.
-  const [isContentReady, setIsContentReady] = useState<boolean>(false);
+
+  // Cache-first startup:
+  // Returning visitors can render the last known-good content immediately.
+  // First-time visitors wait only when there is no local cache at all.
+  const [isContentReady, setIsContentReady] = useState<boolean>(
+    () => readCachedContent() !== null
+  );
 
   const dir: 'rtl' | 'ltr' = language === 'en' ? 'ltr' : 'rtl';
 
@@ -252,24 +274,30 @@ export const ContentProvider: React.FC<{ children: React.ReactNode }> = ({ child
   // Update language and persist to localStorage
   const setLanguage = useCallback((newLang: SupportedLanguage) => {
     setLanguageState(newLang);
+
     if (typeof window !== 'undefined') {
       try {
         localStorage.setItem(LANGUAGE_STORAGE_KEY, newLang);
       } catch {}
     }
+
     if (typeof document !== 'undefined') {
       document.documentElement.dir = newLang === 'en' ? 'ltr' : 'rtl';
       document.documentElement.lang = newLang;
     }
   }, []);
 
-  // Resolve the authoritative server content BEFORE rendering the website.
-  // This is intentionally NOT a background refresh: rendering cached content
-  // first and replacing it with server content causes the visible text flash.
-  //
-  // The cache is retained as an offline/error fallback only.
+  // Cache-first loading:
+  // - Returning visitors render cached content immediately.
+  // - The server is refreshed in the background.
+  // - If cached content already exists, the background response is NOT applied
+  //   to the current screen. This prevents the old-text -> new-text flash.
+  // - The fresh server response is saved to cache for the next visit.
+  // - First-time visitors with no cache use the server response as their
+  //   initial content once it arrives.
   useEffect(() => {
     let isMounted = true;
+    const hasCachedContent = readCachedContent() !== null;
 
     const loadContent = async () => {
       try {
@@ -282,20 +310,23 @@ export const ContentProvider: React.FC<{ children: React.ReactNode }> = ({ child
           typeof loaded === 'object' &&
           Object.keys(loaded).length > 0
         ) {
-          setContent(loaded);
-          setDraftContent(loaded);
+          // Always keep the newest server response for the next visit.
           writeCachedContent(loaded);
+
+          // Only block/update the visible content for a first-time visitor.
+          // If cached content was already rendered, replacing it here would
+          // create the visible text flash we are explicitly avoiding.
+          if (!hasCachedContent) {
+            setContent(loaded);
+            setDraftContent(loaded);
+          }
         } else {
-          // An empty server response is not valid site content.
-          // Keep the existing cache/default content and finish loading.
-          console.warn('Site content response was empty; using local fallback.');
+          console.warn(
+            'Site content response was empty; keeping local content.'
+          );
         }
       } catch (e) {
         console.error('Failed to load site content:', e);
-
-        // Offline/error fallback:
-        // getInitialContent() has already loaded the last known-good cache
-        // synchronously, so do not replace it with a newer-looking default.
       } finally {
         if (isMounted) {
           setIsContentReady(true);
@@ -315,30 +346,35 @@ export const ContentProvider: React.FC<{ children: React.ReactNode }> = ({ child
     const draftKeys = Object.keys(draftContent);
     const contentKeys = Object.keys(content);
     const allKeys = new Set([...draftKeys, ...contentKeys]);
+
     for (const key of allKeys) {
       if ((draftContent[key] ?? '') !== (content[key] ?? '')) {
         return true;
       }
     }
+
     return false;
   }, [draftContent, content]);
 
   // Update a single draft value in real-time
-  const updateDraftValue = useCallback((id: string, value: string) => {
-    const isMetaField =
-      id.includes('.__') ||
-      id.includes(':');
+  const updateDraftValue = useCallback(
+    (id: string, value: string) => {
+      const isMetaField =
+        id.includes('.__') ||
+        id.includes(':');
 
-    const key =
-      isMetaField || language === 'fa'
-        ? id
-        : `${id}:${language}`;
+      const key =
+        isMetaField || language === 'fa'
+          ? id
+          : `${id}:${language}`;
 
-    setDraftContent((prev) => ({
-      ...prev,
-      [key]: value,
-    }));
-  }, [language]);
+      setDraftContent((prev) => ({
+        ...prev,
+        [key]: value,
+      }));
+    },
+    [language]
+  );
 
   // Save all drafted changes to persistence
   const saveAllChanges = useCallback(async (): Promise<boolean> => {
@@ -354,69 +390,86 @@ export const ContentProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
       setContent(mergedContent);
       setDraftContent(mergedContent);
-      // NEW: keep the cache in sync with what was just saved, so the next
+
+      // Keep the cache in sync with what was just saved, so the next
       // load (even before the network round-trip finishes) shows this.
       writeCachedContent(mergedContent);
 
       return true;
-
     } catch (e) {
       console.error('Failed to save content changes:', e);
       throw e;
-
     } finally {
       setIsSaving(false);
     }
   }, [content, draftContent]);
 
   // Reset a specific field to factory default for current language & reset size/deletion
-  const resetField = useCallback((id: string) => {
-    setDraftContent((prev) => {
-      const updated = { ...prev };
-      
-      if (language === 'en') {
-        const enDefault = DEFAULT_CONTENT_EN[id] || '';
-        updated[`${id}:en`] = enDefault;
-      } else if (language === 'ar') {
-        const arDefault = DEFAULT_CONTENT_AR[id] || '';
-        updated[`${id}:ar`] = arDefault;
-      } else {
-        const def = getContentDefinition(id);
-        updated[id] = def ? def.defaultValue : '';
-      }
-      
-      updated[`${id}.__size`] = '';
-      updated[`${id}.__deleted`] = 'false';
-      updated[`${id}.__hide_container`] = 'false';
-      return updated;
-    });
-  }, [language]);
+  const resetField = useCallback(
+    (id: string) => {
+      setDraftContent((prev) => {
+        const updated = { ...prev };
+
+        if (language === 'en') {
+          const enDefault = DEFAULT_CONTENT_EN[id] || '';
+          updated[`${id}:en`] = enDefault;
+        } else if (language === 'ar') {
+          const arDefault = DEFAULT_CONTENT_AR[id] || '';
+          updated[`${id}:ar`] = arDefault;
+        } else {
+          const def = getContentDefinition(id);
+          updated[id] = def ? def.defaultValue : '';
+        }
+
+        updated[`${id}.__size`] = '';
+        updated[`${id}.__deleted`] = 'false';
+        updated[`${id}.__hide_container`] = 'false';
+
+        return updated;
+      });
+    },
+    [language]
+  );
 
   // Reset an entire section to factory defaults
-  const resetSection = useCallback(async (sectionKey: string) => {
-    const { CONTENT_DEFINITIONS } = await import('../data/defaultContent');
-    const items = CONTENT_DEFINITIONS.filter((item) => item.sectionKey === sectionKey);
-    setDraftContent((prev) => {
-      const updated = { ...prev };
-      items.forEach((item) => {
-        if (language === 'en') {
-          updated[`${item.id}:en`] = DEFAULT_CONTENT_EN[item.id] || '';
-        } else if (language === 'ar') {
-          updated[`${item.id}:ar`] = DEFAULT_CONTENT_AR[item.id] || '';
-        } else {
-          updated[item.id] = item.defaultValue;
-        }
-        delete updated[`${item.id}.__size`];
-        delete updated[`${item.id}.__deleted`];
-        delete updated[`${item.id}.__hide_container`];
+  const resetSection = useCallback(
+    async (sectionKey: string) => {
+      const { CONTENT_DEFINITIONS } =
+        await import('../data/defaultContent');
+
+      const items = CONTENT_DEFINITIONS.filter(
+        (item) => item.sectionKey === sectionKey
+      );
+
+      setDraftContent((prev) => {
+        const updated = { ...prev };
+
+        items.forEach((item) => {
+          if (language === 'en') {
+            updated[`${item.id}:en`] =
+              DEFAULT_CONTENT_EN[item.id] || '';
+          } else if (language === 'ar') {
+            updated[`${item.id}:ar`] =
+              DEFAULT_CONTENT_AR[item.id] || '';
+          } else {
+            updated[item.id] = item.defaultValue;
+          }
+
+          delete updated[`${item.id}.__size`];
+          delete updated[`${item.id}.__deleted`];
+          delete updated[`${item.id}.__hide_container`];
+        });
+
+        return updated;
       });
-      return updated;
-    });
-  }, [language]);
+    },
+    [language]
+  );
 
   // Reset everything to factory defaults
   const resetAll = useCallback(async () => {
     const res = await contentRepository.resetAll();
+
     setContent(res);
     setDraftContent(res);
     setActiveEditId(null);
@@ -428,10 +481,12 @@ export const ContentProvider: React.FC<{ children: React.ReactNode }> = ({ child
     (id: string): number => {
       const source = isEditorMode ? draftContent : content;
       const sizeVal = source[`${id}.__size`];
+
       if (sizeVal !== undefined && sizeVal !== '') {
         const parsed = parseInt(sizeVal, 10);
         return isNaN(parsed) ? 0 : parsed;
       }
+
       return 0;
     },
     [isEditorMode, draftContent, content]
@@ -440,7 +495,11 @@ export const ContentProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const setTextSize = useCallback(
     (id: string, size: number) => {
       const clamped = Math.max(-2, Math.min(3, size));
-      updateDraftValue(`${id}.__size`, clamped === 0 ? '' : String(clamped));
+
+      updateDraftValue(
+        `${id}.__size`,
+        clamped === 0 ? '' : String(clamped)
+      );
     },
     [updateDraftValue]
   );
@@ -464,7 +523,10 @@ export const ContentProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   const setFieldDeleted = useCallback(
     (id: string, deleted: boolean) => {
-      updateDraftValue(`${id}.__deleted`, deleted ? 'true' : 'false');
+      updateDraftValue(
+        `${id}.__deleted`,
+        deleted ? 'true' : 'false'
+      );
     },
     [updateDraftValue]
   );
@@ -488,7 +550,10 @@ export const ContentProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   const setContainerDeleted = useCallback(
     (id: string, deleted: boolean) => {
-      updateDraftValue(`${id}.__hide_container`, deleted ? 'true' : 'false');
+      updateDraftValue(
+        `${id}.__hide_container`,
+        deleted ? 'true' : 'false'
+      );
     },
     [updateDraftValue]
   );
@@ -508,60 +573,113 @@ export const ContentProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
       // Handle cta.catalogButton / cta.downloadButton alias seamlessly
       let resolvedId = id;
-      if (id === 'cta.catalogButton' && source['cta.catalogButton'] === undefined && source['cta.downloadButton'] !== undefined) {
+
+      if (
+        id === 'cta.catalogButton' &&
+        source['cta.catalogButton'] === undefined &&
+        source['cta.downloadButton'] !== undefined
+      ) {
         resolvedId = 'cta.downloadButton';
-      } else if (id === 'cta.downloadButton' && source['cta.downloadButton'] === undefined && source['cta.catalogButton'] !== undefined) {
+      } else if (
+        id === 'cta.downloadButton' &&
+        source['cta.downloadButton'] === undefined &&
+        source['cta.catalogButton'] !== undefined
+      ) {
         resolvedId = 'cta.catalogButton';
       }
 
       if (language === 'en') {
         const localizedKey = `${resolvedId}:en`;
-        if (source[localizedKey] !== undefined && source[localizedKey].trim() !== '') {
+
+        if (
+          source[localizedKey] !== undefined &&
+          source[localizedKey].trim() !== ''
+        ) {
           return source[localizedKey];
         }
+
         if (DEFAULT_CONTENT_EN[resolvedId] !== undefined) {
           return DEFAULT_CONTENT_EN[resolvedId];
         }
+
         if (DEFAULT_CONTENT_EN[id] !== undefined) {
           return DEFAULT_CONTENT_EN[id];
         }
+
         // Check phrase dictionary for key, fallback, or persian default
         if (PHRASE_DICTIONARY_EN[id] !== undefined) {
           return PHRASE_DICTIONARY_EN[id];
         }
-        if (fallback && PHRASE_DICTIONARY_EN[fallback] !== undefined) {
+
+        if (
+          fallback &&
+          PHRASE_DICTIONARY_EN[fallback] !== undefined
+        ) {
           return PHRASE_DICTIONARY_EN[fallback];
         }
-        if (source[resolvedId] && PHRASE_DICTIONARY_EN[source[resolvedId]] !== undefined) {
+
+        if (
+          source[resolvedId] &&
+          PHRASE_DICTIONARY_EN[source[resolvedId]] !== undefined
+        ) {
           return PHRASE_DICTIONARY_EN[source[resolvedId]];
         }
-        const def = getContentDefinition(resolvedId) || getContentDefinition(id);
-        if (def?.defaultValue && PHRASE_DICTIONARY_EN[def.defaultValue] !== undefined) {
+
+        const def =
+          getContentDefinition(resolvedId) ||
+          getContentDefinition(id);
+
+        if (
+          def?.defaultValue &&
+          PHRASE_DICTIONARY_EN[def.defaultValue] !== undefined
+        ) {
           return PHRASE_DICTIONARY_EN[def.defaultValue];
         }
       } else if (language === 'ar') {
         const localizedKey = `${resolvedId}:ar`;
-        if (source[localizedKey] !== undefined && source[localizedKey].trim() !== '') {
+
+        if (
+          source[localizedKey] !== undefined &&
+          source[localizedKey].trim() !== ''
+        ) {
           return source[localizedKey];
         }
+
         if (DEFAULT_CONTENT_AR[resolvedId] !== undefined) {
           return DEFAULT_CONTENT_AR[resolvedId];
         }
+
         if (DEFAULT_CONTENT_AR[id] !== undefined) {
           return DEFAULT_CONTENT_AR[id];
         }
+
         // Check phrase dictionary for key, fallback, or persian default
         if (PHRASE_DICTIONARY_AR[id] !== undefined) {
           return PHRASE_DICTIONARY_AR[id];
         }
-        if (fallback && PHRASE_DICTIONARY_AR[fallback] !== undefined) {
+
+        if (
+          fallback &&
+          PHRASE_DICTIONARY_AR[fallback] !== undefined
+        ) {
           return PHRASE_DICTIONARY_AR[fallback];
         }
-        if (source[resolvedId] && PHRASE_DICTIONARY_AR[source[resolvedId]] !== undefined) {
+
+        if (
+          source[resolvedId] &&
+          PHRASE_DICTIONARY_AR[source[resolvedId]] !== undefined
+        ) {
           return PHRASE_DICTIONARY_AR[source[resolvedId]];
         }
-        const def = getContentDefinition(resolvedId) || getContentDefinition(id);
-        if (def?.defaultValue && PHRASE_DICTIONARY_AR[def.defaultValue] !== undefined) {
+
+        const def =
+          getContentDefinition(resolvedId) ||
+          getContentDefinition(id);
+
+        if (
+          def?.defaultValue &&
+          PHRASE_DICTIONARY_AR[def.defaultValue] !== undefined
+        ) {
           return PHRASE_DICTIONARY_AR[def.defaultValue];
         }
       }
@@ -570,10 +688,15 @@ export const ContentProvider: React.FC<{ children: React.ReactNode }> = ({ child
       if (Object.prototype.hasOwnProperty.call(source, resolvedId)) {
         return source[resolvedId];
       }
+
       if (fallback !== undefined) {
         return fallback;
       }
-      const def = getContentDefinition(resolvedId) || getContentDefinition(id);
+
+      const def =
+        getContentDefinition(resolvedId) ||
+        getContentDefinition(id);
+
       return def ? def.defaultValue : '';
     },
     [isEditorMode, draftContent, content, language]
@@ -641,12 +764,6 @@ export const ContentProvider: React.FC<{ children: React.ReactNode }> = ({ child
     ]
   );
 
-  // Do not render the real website until authoritative content has been
-  // resolved. This prevents the old/default content from ever being painted
-  // and then replaced a moment later.
-  //
-  // The provider itself is still mounted, so all hooks/components keep their
-  // normal context contract once the loading screen is replaced.
   return (
     <ContentContext.Provider value={value}>
       {isContentReady ? (
@@ -680,9 +797,11 @@ export const ContentProvider: React.FC<{ children: React.ReactNode }> = ({ child
                 border: '2px solid rgba(17,17,17,0.12)',
                 borderTopColor: '#111111',
                 borderRadius: '50%',
-                animation: 'ideahome-content-loader 0.8s linear infinite',
+                animation:
+                  'ideahome-content-loader 0.8s linear infinite',
               }}
             />
+
             <span style={{ fontSize: '13px', opacity: 0.55 }}>
               در حال بارگذاری...
             </span>
@@ -701,8 +820,12 @@ export const ContentProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
 export const useSiteContent = (): ContentContextType => {
   const ctx = useContext(ContentContext);
+
   if (!ctx) {
-    throw new Error('useSiteContent must be used within a ContentProvider');
+    throw new Error(
+      'useSiteContent must be used within a ContentProvider'
+    );
   }
+
   return ctx;
 };
