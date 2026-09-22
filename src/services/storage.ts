@@ -1003,7 +1003,7 @@ class StorageService {
         formData.append('fileName', file.name || (folder === 'priceList' ? 'IdeaHome-PriceList.pdf' : 'IdeaHome-Catalog.pdf'));
 
         const uploadController = new AbortController();
-        const uploadTimeout = setTimeout(() => uploadController.abort(), 60000);
+        const uploadTimeout = setTimeout(() => uploadController.abort(), 300000);
 
         const uploadRes = await this.fetchWithAuth('/api/upload', {
           method: 'POST',
