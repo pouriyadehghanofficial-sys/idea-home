@@ -115,6 +115,28 @@ export class ContentRepository {
   }
 
   async getSiteContent(): Promise<Record<string, string>> {
+    // Check if an early fetch was already started in head
+    if (typeof window !== 'undefined' && (window as any).__CONTENT_FETCH_PROMISE__) {
+      try {
+        const earlyData = await (window as any).__CONTENT_FETCH_PROMISE__;
+        (window as any).__CONTENT_FETCH_PROMISE__ = null;
+        if (earlyData && typeof earlyData === 'object' && Object.keys(earlyData).length > 0) {
+          const merged = {
+            ...DEFAULT_SITE_CONTENT,
+            ...earlyData,
+          };
+          this.inMemoryCache = merged;
+          try {
+            localStorage.setItem(CONTENT_CACHE_KEY, JSON.stringify(merged));
+            localStorage.setItem(LEGACY_CACHE_KEY, JSON.stringify(merged));
+            idbSet(CONTENT_CACHE_KEY, merged).catch(() => {});
+            idbSet(LEGACY_CACHE_KEY, merged).catch(() => {});
+          } catch {}
+          return merged;
+        }
+      } catch {}
+    }
+
     const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
     const timeoutId = controller ? setTimeout(() => controller.abort(), 4500) : null;
 
