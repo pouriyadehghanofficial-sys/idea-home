@@ -40,6 +40,33 @@
       })();
     </script>
 
+    <!-- Synchronous Cache-First Content Initialization & Non-blocking Pre-fetch -->
+    <script>
+      (function() {
+        try {
+          var c = localStorage.getItem('ideahome_content_cache') || localStorage.getItem('arasteh_site_content_db');
+          if (c) {
+            window.__IDEAHOME_INITIAL_CONTENT__ = JSON.parse(c);
+          }
+        } catch (_) {}
+        try {
+          var controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+          var t = setTimeout(function() { if (controller) controller.abort(); }, 3500);
+          window.__CONTENT_FETCH_PROMISE__ = fetch('/api/content?t=' + Date.now(), {
+            cache: 'no-store',
+            headers: { 'Cache-Control': 'no-store' },
+            signal: controller ? controller.signal : undefined
+          }).then(function(res) {
+            clearTimeout(t);
+            return res.ok ? res.json() : null;
+          }).catch(function() {
+            clearTimeout(t);
+            return null;
+          });
+        } catch (_) {}
+      })();
+    </script>
+
     <link rel="icon" type="image/svg+xml" href="/logo.svg" />
 
     <title>آیدیا هوم | همراه همیشگی خانه و آشپزخانه ایرانی</title>
