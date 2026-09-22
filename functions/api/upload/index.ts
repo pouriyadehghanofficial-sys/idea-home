@@ -1,248 +1,415 @@
-// Cloudflare Pages Function: /api/upload/index.ts
-// Handles file deletion and server-side PDF uploads via ImageKit Media Library API
+// functions/api/upload/index.ts
+// Cloudflare Pages Function
+// Upload PDF/Image files to ImageKit
 
-import { requireAdmin } from '../_auth';
+import { requireAdmin } from "../_auth";
+
 
 const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS',
-  'Access-Control-Allow-Headers': '*',
-  'Access-Control-Max-Age': '86400',
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "GET,POST,DELETE,OPTIONS",
+  "Access-Control-Allow-Headers": "*",
 };
 
-export const onRequestOptions: PagesFunction<Env> = async () => {
-  return new Response(null, {
-    status: 204,
-    headers: corsHeaders,
+
+
+export const onRequestOptions: PagesFunction = async () => {
+
+  return new Response(null,{
+    status:204,
+    headers:corsHeaders
   });
+
 };
 
-export const onRequestPost: PagesFunction<Env> = async (context) => {
-  const { request, env } = context;
 
-  const auth = await requireAdmin(request, env);
-  if (!auth.authenticated) return auth.errorResponse!;
 
-  const privateKey = env.IMAGEKIT_PRIVATE_KEY?.trim();
+export const onRequestPost: PagesFunction = async ({
+  request,
+  env
+}) => {
 
-  if (!privateKey) {
-    return new Response(
-      JSON.stringify({
-        success: false,
-        error: 'تنظیمات ImageKit در سرور پیکربندی نشده است.'
-      }),
-      {
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      }
-    );
-  }
 
   try {
-    const contentType = request.headers.get('content-type') || '';
 
-    if (!contentType.toLowerCase().includes('multipart/form-data')) {
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: 'درخواست باید از نوع multipart/form-data باشد.'
-        }),
-        {
-          status: 400,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        }
-      );
+
+    const auth = await requireAdmin(request,env);
+
+    if(!auth.authenticated){
+      return auth.errorResponse!;
     }
 
-    const incoming = await request.formData();
-    const file = incoming.get('file');
 
-    if (!file || !(file instanceof Blob || typeof (file as any).arrayBuffer === 'function')) {
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: 'فایل ارسال نشده است.'
-        }),
+
+    const privateKey =
+      env.IMAGEKIT_PRIVATE_KEY?.trim();
+
+
+
+    if(!privateKey){
+
+      return Response.json(
         {
-          status: 400,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          success:false,
+          error:"IMAGEKIT_PRIVATE_KEY موجود نیست"
+        },
+        {
+          status:500,
+          headers:corsHeaders
         }
       );
+
     }
 
-    const fileSize = (file as Blob).size || 0;
-    if (fileSize > 50 * 1024 * 1024) {
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: 'حجم فایل نباید بیشتر از 50 مگابایت باشد.'
-        }),
+
+
+
+    const form =
+      await request.formData();
+
+
+
+    const file =
+      form.get("file") as File;
+
+
+
+    if(!file){
+
+      return Response.json(
         {
-          status: 413,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          success:false,
+          error:"فایل ارسال نشده"
+        },
+        {
+          status:400,
+          headers:corsHeaders
         }
       );
+
     }
+
+
+
+    if(file.size > 50*1024*1024){
+
+      return Response.json(
+        {
+          success:false,
+          error:"حجم فایل بیشتر از 50MB است"
+        },
+        {
+          status:413,
+          headers:corsHeaders
+        }
+      );
+
+    }
+
+
+
 
     const fileName =
-      (incoming.get('fileName') as string) ||
-      (file as any).name ||
-      'IdeaHome-Catalog.pdf';
+      file.name || "upload.pdf";
 
-    const requestedFolder = incoming.get('folder') as string;
-    const isPrice = fileName.toLowerCase().includes('price');
-    const isCatalog = fileName.toLowerCase().includes('catalog');
-    const folder = requestedFolder || (isPrice ? '/ideahome/price-list' : isCatalog ? '/ideahome/catalog' : '/ideahome/uploads');
 
-    // Convert file to base64 for seamless, stream-safe upload to ImageKit
-    const arrayBuffer = await (file as Blob).arrayBuffer();
-    const buffer = new Uint8Array(arrayBuffer);
-    let binary = '';
-    const chunkSize = 8192;
-    for (let i = 0; i < buffer.length; i += chunkSize) {
-      binary += String.fromCharCode.apply(null, Array.from(buffer.subarray(i, i + chunkSize)));
-    }
-    const base64Data = btoa(binary);
 
-    const uploadForm = new FormData();
-    uploadForm.append('file', base64Data);
-    uploadForm.append('fileName', fileName);
-    uploadForm.append('folder', folder);
-    uploadForm.append('useUniqueFileName', 'true');
-
-    const authHeader = 'Basic ' + btoa(`${privateKey}:`);
-
-    const imageKitResponse = await fetch(
-      'https://upload.imagekit.io/api/v1/files/upload',
-      {
-        method: 'POST',
-        headers: {
-          Authorization: authHeader
-        },
-        body: uploadForm
-      }
-    );
-
-    const responseText = await imageKitResponse.text();
-
-    let imageKitData: any = {};
-    try {
-      imageKitData = JSON.parse(responseText);
-    } catch {
-      imageKitData = { raw: responseText };
-    }
-
-    if (!imageKitResponse.ok || !imageKitData?.url) {
-      console.error(
-        'IMAGEKIT SERVER UPLOAD ERROR:',
-        imageKitResponse.status,
-        imageKitData
+    const folder =
+      form.get("folder")?.toString()
+      ||
+      (
+        fileName
+        .toLowerCase()
+        .includes("price")
+        ?
+        "/ideahome/price-list"
+        :
+        "/ideahome/catalog"
       );
 
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: 'آپلود فایل در ImageKit ناموفق بود.',
-          details: imageKitData
-        }),
+
+
+
+
+    const arrayBuffer =
+      await file.arrayBuffer();
+
+
+
+    const bytes =
+      new Uint8Array(arrayBuffer);
+
+
+
+    let binary="";
+
+    const chunk=8192;
+
+
+    for(
+      let i=0;
+      i<bytes.length;
+      i+=chunk
+    ){
+
+      binary += String.fromCharCode(
+        ...bytes.subarray(
+          i,
+          i+chunk
+        )
+      );
+
+    }
+
+
+
+    const base64 =
+      btoa(binary);
+
+
+
+
+    const uploadForm =
+      new FormData();
+
+
+
+    uploadForm.append(
+      "file",
+      base64
+    );
+
+
+    uploadForm.append(
+      "fileName",
+      fileName
+    );
+
+
+    uploadForm.append(
+      "folder",
+      folder
+    );
+
+
+    uploadForm.append(
+      "useUniqueFileName",
+      "true"
+    );
+
+
+
+
+
+    const response =
+      await fetch(
+        "https://upload.imagekit.io/api/v1/files/upload",
         {
-          status: imageKitResponse.status || 502,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          method:"POST",
+
+          headers:{
+            Authorization:
+            "Basic "+
+            btoa(
+              privateKey+":"
+            )
+          },
+
+          body:uploadForm
         }
       );
+
+
+
+
+    const result =
+      await response.json();
+
+
+
+
+    if(!response.ok){
+
+      console.error(
+        "ImageKit error",
+        result
+      );
+
+
+      return Response.json(
+        {
+          success:false,
+          error:"خطا در ImageKit",
+          details:result
+        },
+        {
+          status:502,
+          headers:corsHeaders
+        }
+      );
+
     }
 
-    console.log('CATALOG SERVER UPLOAD SUCCESS:', imageKitData.url);
 
-    return new Response(
-      JSON.stringify({
-        success: true,
-        url: imageKitData.url,
-        fileId: imageKitData.fileId || '',
-        publicId: imageKitData.fileId || '',
-        key: imageKitData.fileId || '',
-        name: imageKitData.name || fileName,
-        size: imageKitData.size || fileSize
-      }),
+
+
+    return Response.json(
       {
-        status: 200,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        success:true,
+
+        url:
+        result.url,
+
+        fileId:
+        result.fileId,
+
+        name:
+        result.name,
+
+        size:
+        result.size
+
+      },
+      {
+        status:200,
+        headers:corsHeaders
       }
     );
-  } catch (error: any) {
-    console.error('CATALOG SERVER UPLOAD ERROR:', error);
 
-    return new Response(
-      JSON.stringify({
-        success: false,
-        error: error?.message || 'خطا در آپلود کاتالوگ.'
-      }),
+
+
+
+  }catch(error:any){
+
+
+    console.error(
+      "UPLOAD ERROR",
+      error
+    );
+
+
+
+    return Response.json(
       {
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        success:false,
+        error:
+        error.message ||
+        "Upload failed"
+      },
+      {
+        status:500,
+        headers:corsHeaders
       }
     );
+
   }
+
+
 };
 
-export const onRequestDelete: PagesFunction<Env> = async (context) => {
-  const { request, env } = context;
 
-  // 1. Enforce admin authentication
-  const auth = await requireAdmin(request, env);
-  if (!auth.authenticated) {
+
+
+
+
+export const onRequestDelete: PagesFunction = async ({
+ request,
+ env
+})=>{
+
+
+ try{
+
+
+  const auth =
+    await requireAdmin(
+      request,
+      env
+    );
+
+
+  if(!auth.authenticated){
+
     return auth.errorResponse!;
+
   }
 
-  const privateKey = env.IMAGEKIT_PRIVATE_KEY?.trim();
 
-  if (!privateKey) {
-    return new Response(
-      JSON.stringify({ error: 'تنظیمات ImageKit در سرور پیکربندی نشده است.' }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
-  }
 
-  try {
-    const url = new URL(request.url);
-    let fileId = url.searchParams.get('fileId') || url.searchParams.get('file_id') || url.searchParams.get('key') || url.searchParams.get('public_id');
+  const fileId =
+    new URL(request.url)
+    .searchParams
+    .get("fileId");
 
-    if (!fileId) {
-      const body = await request.json<any>().catch(() => ({}));
-      fileId = body.fileId || body.file_id || body.key || body.public_id;
-    }
 
-    if (!fileId) {
-      return new Response(
-        JSON.stringify({ error: 'شناسه فایل (fileId) الزامی است.' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
 
-    const authHeader = 'Basic ' + btoa(`${privateKey}:`);
-    const deleteUrl = `https://api.imagekit.io/v1/files/${encodeURIComponent(fileId)}`;
+  if(!fileId){
 
-    const ikRes = await fetch(deleteUrl, {
-      method: 'DELETE',
-      headers: {
-        'Authorization': authHeader
+    return Response.json(
+      {
+        success:false,
+        error:"fileId required"
+      },
+      {
+        status:400,
+        headers:corsHeaders
       }
-    });
-
-    const isSuccess = ikRes.ok || ikRes.status === 404;
-
-    return new Response(
-      JSON.stringify({
-        success: isSuccess,
-        fileId: fileId,
-        message: isSuccess ? 'فایل با موفقیت از سرور ImageKit حذف شد.' : 'خطا در حذف فایل از ImageKit'
-      }),
-      { status: isSuccess ? 200 : ikRes.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
-  } catch (err: any) {
-    return new Response(
-      JSON.stringify({ error: err.message || 'خطا در حذف فایل از ImageKit' }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+
   }
+
+
+
+  const result =
+    await fetch(
+      `https://api.imagekit.io/v1/files/${fileId}`,
+      {
+
+        method:"DELETE",
+
+        headers:{
+          Authorization:
+          "Basic "+
+          btoa(
+            env.IMAGEKIT_PRIVATE_KEY+":"
+          )
+        }
+
+      }
+    );
+
+
+
+
+  return Response.json(
+    {
+      success:
+      result.ok
+    },
+    {
+      headers:corsHeaders
+    }
+  );
+
+
+
+ }catch(e:any){
+
+
+  return Response.json(
+    {
+      success:false,
+      error:e.message
+    },
+    {
+      status:500,
+      headers:corsHeaders
+    }
+  );
+
+
+}
+
+
+
 };
