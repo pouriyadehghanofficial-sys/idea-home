@@ -1,9 +1,21 @@
 // Cloudflare Pages Function: /api/upload/index.ts
-// Handles file deletion via ImageKit Media Library API
-// For uploads, clients request auth from /api/upload/sign (or /api/upload/auth) and upload directly to ImageKit
+// Handles file deletion and server-side PDF uploads via ImageKit Media Library API
 
 import { requireAdmin } from '../_auth';
 
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS',
+  'Access-Control-Allow-Headers': '*',
+  'Access-Control-Max-Age': '86400',
+};
+
+export const onRequestOptions: PagesFunction<Env> = async () => {
+  return new Response(null, {
+    status: 204,
+    headers: corsHeaders,
+  });
+};
 
 export const onRequestPost: PagesFunction<Env> = async (context) => {
   const { request, env } = context;
@@ -21,7 +33,7 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
       }),
       {
         status: 500,
-        headers: { 'Content-Type': 'application/json' }
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       }
     );
   }
@@ -37,7 +49,7 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
         }),
         {
           status: 400,
-          headers: { 'Content-Type': 'application/json' }
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         }
       );
     }
@@ -45,7 +57,7 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
     const incoming = await request.formData();
     const file = incoming.get('file');
 
-    if (!(file instanceof File)) {
+    if (!file || !(file instanceof Blob || typeof (file as any).arrayBuffer === 'function')) {
       return new Response(
         JSON.stringify({
           success: false,
@@ -53,27 +65,28 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
         }),
         {
           status: 400,
-          headers: { 'Content-Type': 'application/json' }
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         }
       );
     }
 
-    if (file.size > 25 * 1024 * 1024) {
+    const fileSize = (file as Blob).size || 0;
+    if (fileSize > 50 * 1024 * 1024) {
       return new Response(
         JSON.stringify({
           success: false,
-          error: 'حجم فایل نباید بیشتر از 25 مگابایت باشد.'
+          error: 'حجم فایل نباید بیشتر از 50 مگابایت باشد.'
         }),
         {
           status: 413,
-          headers: { 'Content-Type': 'application/json' }
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         }
       );
     }
 
     const fileName =
       (incoming.get('fileName') as string) ||
-      file.name ||
+      (file as any).name ||
       'IdeaHome-Catalog.pdf';
 
     const requestedFolder = incoming.get('folder') as string;
@@ -81,8 +94,18 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
     const isCatalog = fileName.toLowerCase().includes('catalog');
     const folder = requestedFolder || (isPrice ? '/ideahome/price-list' : isCatalog ? '/ideahome/catalog' : '/ideahome/uploads');
 
+    // Convert file to base64 for seamless, stream-safe upload to ImageKit
+    const arrayBuffer = await (file as Blob).arrayBuffer();
+    const buffer = new Uint8Array(arrayBuffer);
+    let binary = '';
+    const chunkSize = 8192;
+    for (let i = 0; i < buffer.length; i += chunkSize) {
+      binary += String.fromCharCode.apply(null, Array.from(buffer.subarray(i, i + chunkSize)));
+    }
+    const base64Data = btoa(binary);
+
     const uploadForm = new FormData();
-    uploadForm.append('file', file);
+    uploadForm.append('file', base64Data);
     uploadForm.append('fileName', fileName);
     uploadForm.append('folder', folder);
     uploadForm.append('useUniqueFileName', 'true');
@@ -124,7 +147,7 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
         }),
         {
           status: imageKitResponse.status || 502,
-          headers: { 'Content-Type': 'application/json' }
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         }
       );
     }
@@ -139,11 +162,11 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
         publicId: imageKitData.fileId || '',
         key: imageKitData.fileId || '',
         name: imageKitData.name || fileName,
-        size: imageKitData.size || file.size
+        size: imageKitData.size || fileSize
       }),
       {
         status: 200,
-        headers: { 'Content-Type': 'application/json' }
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       }
     );
   } catch (error: any) {
@@ -156,7 +179,7 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
       }),
       {
         status: 500,
-        headers: { 'Content-Type': 'application/json' }
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       }
     );
   }
@@ -176,7 +199,7 @@ export const onRequestDelete: PagesFunction<Env> = async (context) => {
   if (!privateKey) {
     return new Response(
       JSON.stringify({ error: 'تنظیمات ImageKit در سرور پیکربندی نشده است.' }),
-      { status: 500, headers: { 'Content-Type': 'application/json' } }
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
 
@@ -192,7 +215,7 @@ export const onRequestDelete: PagesFunction<Env> = async (context) => {
     if (!fileId) {
       return new Response(
         JSON.stringify({ error: 'شناسه فایل (fileId) الزامی است.' }),
-        { status: 400, headers: { 'Content-Type': 'application/json' } }
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
@@ -214,12 +237,12 @@ export const onRequestDelete: PagesFunction<Env> = async (context) => {
         fileId: fileId,
         message: isSuccess ? 'فایل با موفقیت از سرور ImageKit حذف شد.' : 'خطا در حذف فایل از ImageKit'
       }),
-      { status: isSuccess ? 200 : ikRes.status, headers: { 'Content-Type': 'application/json' } }
+      { status: isSuccess ? 200 : ikRes.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   } catch (err: any) {
     return new Response(
       JSON.stringify({ error: err.message || 'خطا در حذف فایل از ImageKit' }),
-      { status: 500, headers: { 'Content-Type': 'application/json' } }
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
 };
