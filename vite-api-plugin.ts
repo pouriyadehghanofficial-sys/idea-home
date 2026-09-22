@@ -108,7 +108,8 @@ export function viteApiPlugin(): Plugin {
         res.setHeader('Content-Type', 'application/json');
         res.setHeader('Access-Control-Allow-Origin', '*');
         res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-        res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+        res.setHeader('Access-Control-Allow-Headers', '*');
+        res.setHeader('Access-Control-Max-Age', '86400');
 
         if (method === 'OPTIONS') {
           res.statusCode = 204;
@@ -261,10 +262,15 @@ export function viteApiPlugin(): Plugin {
             const requestedFolder = incoming.get('folder') as string;
             const folder = requestedFolder || (isPrice ? '/ideahome/price-list' : isCatalog ? '/ideahome/catalog' : '/ideahome/uploads');
 
+            const arrayBuffer = await file.arrayBuffer();
+            const buffer = Buffer.from(arrayBuffer);
+            const base64Data = buffer.toString('base64');
+            const mimeType = file.type || 'application/pdf';
+
             const privateKey = process.env.IMAGEKIT_PRIVATE_KEY;
             if (privateKey) {
               const uploadForm = new FormData();
-              uploadForm.append('file', file);
+              uploadForm.append('file', base64Data);
               uploadForm.append('fileName', rawFileName);
               uploadForm.append('folder', folder);
               uploadForm.append('useUniqueFileName', 'true');
@@ -304,17 +310,14 @@ export function viteApiPlugin(): Plugin {
             }
 
             // High-speed local dev fallback if ImageKit credentials missing or offline
-            const arrayBuffer = await file.arrayBuffer();
-            const buffer = Buffer.from(arrayBuffer);
-            const mimeType = file.type || 'application/pdf';
-            const base64Data = `data:${mimeType};base64,${buffer.toString('base64')}`;
+            const dataUri = `data:${mimeType};base64,${base64Data}`;
             const localId = `local_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 
             res.statusCode = 200;
             res.setHeader('Content-Type', 'application/json');
             return res.end(JSON.stringify({
               success: true,
-              url: base64Data,
+              url: dataUri,
               fileId: localId,
               publicId: localId,
               key: localId,
