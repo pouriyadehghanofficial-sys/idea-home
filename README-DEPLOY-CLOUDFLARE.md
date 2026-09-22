@@ -136,5 +136,3 @@ npx wrangler pages deploy dist --project-name arasteh-manufacturing
 
 
 
-
-
