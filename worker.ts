@@ -554,9 +554,21 @@ export default {
     // =========================
     // UPLOAD
     // =========================
-
+    
     if (path === "/api/upload") {
-
+    
+      if (
+        method === "OPTIONS" &&
+        upload.onRequestOptions
+      ) {
+        return callHandler(
+          upload.onRequestOptions,
+          request,
+          env
+        );
+      }
+    
+    
       if (
         method === "POST" &&
         upload.onRequestPost
@@ -567,10 +579,22 @@ export default {
           env
         );
       }
-
+    
+    
+      if (
+        method === "DELETE" &&
+        upload.onRequestDelete
+      ) {
+        return callHandler(
+          upload.onRequestDelete,
+          request,
+          env
+        );
+      }
+    
+    
       return apiNotFound(path);
     }
-
 
     // =========================
     // UPLOAD SIGN
