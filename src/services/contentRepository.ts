@@ -17,16 +17,39 @@ export class ContentRepository {
     }
     if (typeof window !== 'undefined') {
       try {
+        const early = (window as any).__IDEAHOME_INITIAL_CONTENT__;
+        if (early && typeof early === 'object' && Object.keys(early).length > 0) {
+          this.inMemoryCache = { ...DEFAULT_SITE_CONTENT, ...early };
+          return true;
+        }
         const raw = localStorage.getItem(CONTENT_CACHE_KEY) || localStorage.getItem(LEGACY_CACHE_KEY);
         if (raw) {
           const parsed = JSON.parse(raw);
           if (parsed && typeof parsed === 'object' && Object.keys(parsed).length > 0) {
+            this.inMemoryCache = { ...DEFAULT_SITE_CONTENT, ...parsed };
             return true;
           }
         }
       } catch {}
     }
     return false;
+  }
+
+  setInMemoryCache(data: Record<string, string>): void {
+    if (!data || typeof data !== 'object') return;
+    const merged = {
+      ...DEFAULT_SITE_CONTENT,
+      ...data,
+    };
+    this.inMemoryCache = merged;
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem(CONTENT_CACHE_KEY, JSON.stringify(merged));
+        localStorage.setItem(LEGACY_CACHE_KEY, JSON.stringify(merged));
+        idbSet(CONTENT_CACHE_KEY, merged).catch(() => {});
+        idbSet(LEGACY_CACHE_KEY, merged).catch(() => {});
+      } catch {}
+    }
   }
 
   getInitialContentSync(): Record<string, string> {
@@ -36,6 +59,12 @@ export class ContentRepository {
 
     if (typeof window !== 'undefined') {
       try {
+        const early = (window as any).__IDEAHOME_INITIAL_CONTENT__;
+        if (early && typeof early === 'object' && Object.keys(early).length > 0) {
+          const merged = { ...DEFAULT_SITE_CONTENT, ...early };
+          this.inMemoryCache = merged;
+          return merged;
+        }
         const raw = localStorage.getItem(CONTENT_CACHE_KEY) || localStorage.getItem(LEGACY_CACHE_KEY);
         if (raw) {
           const parsed = JSON.parse(raw);
@@ -52,6 +81,37 @@ export class ContentRepository {
     }
 
     return { ...DEFAULT_SITE_CONTENT };
+  }
+
+  async bootstrapSiteContent(maxWaitMs: number = 1500): Promise<Record<string, string>> {
+    // 1. If cache already exists, return synchronously (0ms delay)
+    if (this.hasCacheSync()) {
+      return this.getInitialContentSync();
+    }
+
+    // 2. No cache: bounded attempt to obtain server content before first paint
+    // Eliminates Flash of Default Content (FODC) completely
+    try {
+      const earlyPromise = typeof window !== 'undefined' ? (window as any).__CONTENT_FETCH_PROMISE__ : undefined;
+      const fetchPromise = earlyPromise || this.getSiteContent();
+
+      let timeoutId: any;
+      const timeoutPromise = new Promise<null>((resolve) => {
+        timeoutId = setTimeout(() => resolve(null), maxWaitMs);
+      });
+
+      const result = await Promise.race([fetchPromise, timeoutPromise]);
+      if (timeoutId) clearTimeout(timeoutId);
+
+      if (result && typeof result === 'object' && Object.keys(result).length > 0) {
+        this.setInMemoryCache(result);
+        return this.inMemoryCache!;
+      }
+    } catch (err) {
+      console.warn('Bootstrap content fetch exception:', err);
+    }
+
+    return this.getInitialContentSync();
   }
 
   async getSiteContent(): Promise<Record<string, string>> {
