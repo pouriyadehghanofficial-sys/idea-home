@@ -29,6 +29,18 @@ export const AdminPriceList: React.FC<AdminPriceListProps> = ({ priceList, onUpd
   const [uploadError, setUploadError] = useState('');
   const [saveSuccess, setSaveSuccess] = useState(false);
 
+  React.useEffect(() => {
+    if (priceList) {
+      if (priceList.title) setTitle(priceList.title);
+      if (priceList.version) setVersion(priceList.version);
+      if (priceList.updatedAt) setUpdatedAt(priceList.updatedAt);
+      if (priceList.fileSize) setFileSize(priceList.fileSize);
+      if (priceList.pageCount) setPageCount(priceList.pageCount);
+      if (priceList.description !== undefined) setDescription(priceList.description);
+      if (priceList.fileUrl) setFileUrl(priceList.fileUrl);
+    }
+  }, [priceList]);
+
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -117,7 +129,7 @@ export const AdminPriceList: React.FC<AdminPriceListProps> = ({ priceList, onUpd
         </div>
 
         <a
-          href={priceList.fileUrl}
+          href={fileUrl || priceList?.fileUrl || '/ideahome-pricelist.pdf'}
           target="_blank"
           rel="noreferrer"
           download="IdeaHome-PriceList.pdf"
