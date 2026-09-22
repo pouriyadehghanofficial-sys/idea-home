@@ -297,6 +297,13 @@ export async function requireAdmin(
   env: Env
 ): Promise<{ authenticated: boolean; user?: AdminPayload; errorResponse?: Response }> {
   const token = extractAuthToken(request);
+  const authCorsHeaders = {
+    'Content-Type': 'application/json',
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+    'Access-Control-Allow-Headers': '*'
+  };
+
   if (!token) {
     return {
       authenticated: false,
@@ -307,7 +314,7 @@ export async function requireAdmin(
         }),
         {
           status: 401,
-          headers: { 'Content-Type': 'application/json' }
+          headers: authCorsHeaders
         }
       )
     };
@@ -326,7 +333,7 @@ export async function requireAdmin(
         }),
         {
           status: 401,
-          headers: { 'Content-Type': 'application/json' }
+          headers: authCorsHeaders
         }
       )
     };
