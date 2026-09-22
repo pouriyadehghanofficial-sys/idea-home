@@ -70,7 +70,7 @@ export const FinalCTA: React.FC<FinalCTAProps> = ({
         onDownloadPriceList();
       } else {
         const targetUrl = priceListUrl || '/ideahome-pricelist.pdf';
-        const safeUrl = getSafeDownloadUrl(targetUrl);
+        const safeUrl = getSafeDownloadUrl(targetUrl, 'pricelist');
         const link = document.createElement('a');
         link.href = safeUrl;
         link.download = 'IdeaHome-PriceList-1404.pdf';
