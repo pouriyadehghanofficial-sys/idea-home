@@ -1,16 +1,24 @@
-import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
-import { 
-  DEFAULT_SITE_CONTENT, 
-  DEFAULT_CONTENT_EN, 
-  DEFAULT_CONTENT_AR, 
-  getContentDefinition, 
-  SupportedLanguage 
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  useCallback,
+  useMemo,
+} from 'react';
+
+import {
+  DEFAULT_SITE_CONTENT,
+  DEFAULT_CONTENT_EN,
+  DEFAULT_CONTENT_AR,
+  getContentDefinition,
+  SupportedLanguage,
 } from '../data/defaultContent';
+
 import { contentRepository } from '../services/contentRepository';
 
 const LANGUAGE_STORAGE_KEY = 'ideahome_lang';
-// NEW: cache key for the last known-good content, so the very first paint
-// can use real data instead of DEFAULT_SITE_CONTENT.
+
 const CONTENT_STORAGE_KEY = 'ideahome_content_cache';
 const CONTENT_CACHE_VERSION = 'v1';
 
@@ -54,22 +62,32 @@ const PHRASE_DICTIONARY_EN: Record<string, string> = {
   'ورود به گالری محصولات': 'Enter Product Gallery',
   'مشاهده نمونه محصولات': 'Explore Product Showcase',
   'در حال دریافت تصاویر مجموعه...': 'Loading facility photos...',
-  'در حال بارگذاری دسته‌بندی‌های محصولات...': 'Loading product categories...',
-  'در حال بارگذاری تصاویر ویترین محصولات...': 'Loading product showcase...',
+  'در حال بارگذاری دسته‌بندی‌های محصولات...':
+    'Loading product categories...',
+  'در حال بارگذاری تصاویر ویترین محصولات...':
+    'Loading product showcase...',
   'جستجوی دسته‌بندی...': 'Search categories...',
   'تصویر': 'Image',
   'از': 'of',
   'عکس': 'Photo',
   'عکس‌های منتخب کارخانه': 'Selected Factory Photos',
-  'خطوط تولید مکانیزه و تزریق': 'Mechanized Production & Injection Lines',
-  'انبارش و بسته‌بندی صادراتی': 'Warehousing & Export Packaging Facility',
-  'دفتر مرکزی و بخش بازرگانی': 'Headquarters & Commercial Department',
-  'شوروم دائمی و گالری محصولات': 'Permanent Showroom & Product Gallery',
-  'کنترل کیفیت و آزمایشگاه فنی': 'Quality Control & Technical Testing Lab',
-  'ناوگان لجستیک و ارسال عمده': 'Logistics Fleet & Wholesale Distribution',
-  'واحد قالب‌سازی و ماشین‌آلات': 'Molding Facility & Advanced Machinery',
+  'خطوط تولید مکانیزه و تزریق':
+    'Mechanized Production & Injection Lines',
+  'انبارش و بسته‌بندی صادراتی':
+    'Warehousing & Export Packaging Facility',
+  'دفتر مرکزی و بخش بازرگانی':
+    'Headquarters & Commercial Department',
+  'شوروم دائمی و گالری محصولات':
+    'Permanent Showroom & Product Gallery',
+  'کنترل کیفیت و آزمایشگاه فنی':
+    'Quality Control & Technical Testing Lab',
+  'ناوگان لجستیک و ارسال عمده':
+    'Logistics Fleet & Wholesale Distribution',
+  'واحد قالب‌سازی و ماشین‌آلات':
+    'Molding Facility & Advanced Machinery',
   'مشاهده تمام تصاویر': 'View All Photos',
-  'مشاهده لندینگ‌پیج ۳D Coverflow (ویترین بصری سه‌بعدی):': 'Experience 3D Coverflow Landing Page:',
+  'مشاهده لندینگ‌پیج ۳D Coverflow (ویترین بصری سه‌بعدی):':
+    'Experience 3D Coverflow Landing Page:',
   'ورود به Coverflow Carousel': 'Enter 3D Carousel',
   'طاهری:': 'Taheri:',
   'طاهری': 'Taheri',
@@ -106,32 +124,55 @@ const PHRASE_DICTIONARY_AR: Record<string, string> = {
   'بازگشت به خانه': 'العودة للرئيسية',
   'منوی اصلی آراسته چوب': 'قائمة آيديا هوم',
   'منوی اصلی آیدیا هوم': 'قائمة آيديا هوم',
-  'مبلمان راحتی و مدرن': 'أثاث الصالون والمعيشة العصري',
-  'میزهای عسلی و جلومبلی': 'طاولات القهوة والخدمة',
-  'سیستم‌های نورپردازی مدرن': 'أنظمة الإضاءة العصرية',
-  'ست‌های کنسول و آینه': 'طاولات وأطقم الكونسول',
-  'میز و صندلی غذاخوری': 'طاولات وكراسي تناول الطعام',
-  'کارخانه تولیدی آیدیا هوم': 'مصنع آيديا هوم للإنتاج الصناعي',
-  'ورود به گالری محصولات': 'الدخول لمعرض المنتجات',
-  'مشاهده نمونه محصولات': 'مشاهدة نماذج المنتجات',
-  'در حال دریافت تصاویر مجموعه...': 'جارٍ تحميل صور المنشأة...',
-  'در حال بارگذاری دسته‌بندی‌های محصولات...': 'جارٍ تحميل فئات المنتجات...',
-  'در حال بارگذاری تصاویر ویترین محصولات...': 'جارٍ تحميل صور معرض المنتجات...',
-  'جستجوی دسته‌بندی...': 'البحث في الفئات...',
+  'مبلمان راحتی و مدرن':
+    'أثاث الصالون والمعيشة العصري',
+  'میزهای عسلی و جلومبلی':
+    'طاولات القهوة والخدمة',
+  'سیستم‌های نورپردازی مدرن':
+    'أنظمة الإضاءة العصرية',
+  'ست‌های کنسول و آینه':
+    'طاولات وأطقم الكونسول',
+  'میز و صندلی غذاخوری':
+    'طاولات وكراسي تناول الطعام',
+  'کارخانه تولیدی آیدیا هوم':
+    'مصنع آيديا هوم للإنتاج الصناعي',
+  'ورود به گالری محصولات':
+    'الدخول لمعرض المنتجات',
+  'مشاهده نمونه محصولات':
+    'مشاهدة نماذج المنتجات',
+  'در حال دریافت تصاویر مجموعه...':
+    'جارٍ تحميل صور المنشأة...',
+  'در حال بارگذاری دسته‌بندی‌های محصولات...':
+    'جارٍ تحميل فئات المنتجات...',
+  'در حال بارگذاری تصاویر ویترین محصولات...':
+    'جارٍ تحميل صور معرض المنتجات...',
+  'جستجوی دسته‌بندی...':
+    'البحث في الفئات...',
   'تصویر': 'الصورة',
   'از': 'من',
   'عکس': 'صورة',
-  'عکس‌های منتخب کارخانه': 'صور مختارة من المصنع',
-  'خطوط تولید مکانیزه و تزریق': 'خطوط الإنتاج الآلية وحقن البلاستيك',
-  'انبارش و بسته‌بندی صادراتی': 'صالات التخزين والتغليف التصديري',
-  'دفتر مرکزی و بخش بازرگانی': 'المقر الرئيسي والإدارة التجارية',
-  'شوروم دائمی و گالری محصولات': 'صالة العرض الدائمة ومعرض المنتجات',
-  'کنترل کیفیت و آزمایشگاه فنی': 'مختبر مراقبة الجودة والفحص الفني',
-  'ناوگان لجستیک و ارسال عمده': 'أسطول النقل اللوجستي وشحن طلبيات الجملة',
-  'واحد قالب‌سازی و ماشین‌آلات': 'صالة تصنيع القوالب والآلات المتطورة',
-  'مشاهده تمام تصاویر': 'عرض جميع الصور',
-  'مشاهده لندینگ‌پیج ۳D Coverflow (ویترین بصری سه‌بعدی):': 'استكشف صفحة الهبوط ثلاثية الأبعاد (Coverflow):',
-  'ورود به Coverflow Carousel': 'الدخول للعرض ثلاثي الأبعاد',
+  'عکس‌های منتخب کارخانه':
+    'صور مختارة من المصنع',
+  'خطوط تولید مکانیزه و تزریق':
+    'خطوط الإنتاج الآلية وحقن البلاستيك',
+  'انبارش و بسته‌بندی صادراتی':
+    'صالات التخزين والتغليف التصديري',
+  'دفتر مرکزی و بخش بازرگانی':
+    'المقر الرئيسي والإدارة التجارية',
+  'شوروم دائمی و گالری محصولات':
+    'صالة العرض الدائمة ومعرض المنتجات',
+  'کنترل کیفیت و آزمایشگاه فنی':
+    'مختبر مراقبة الجودة والفحص الفني',
+  'ناوگان لجستیک و ارسال عمده':
+    'أسطول النقل اللوجستي وشحن طلبيات الجملة',
+  'واحد قالب‌سازی و ماشین‌آلات':
+    'صالة تصنيع القوالب والآلات المتطورة',
+  'مشاهده تمام تصاویر':
+    'عرض جميع الصور',
+  'مشاهده لندینگ‌پیج ۳D Coverflow (ویترین بصری سه‌بعدی):':
+    'استكشف صفحة الهبوط ثلاثية الأبعاد (Coverflow):',
+  'ورود به Coverflow Carousel':
+    'الدخول للعرض ثلاثي الأبعاد',
   'طاهری:': 'طاهري:',
   'طاهری': 'طاهري',
 };
@@ -139,43 +180,45 @@ const PHRASE_DICTIONARY_AR: Record<string, string> = {
 interface ContentContextType {
   content: Record<string, string>;
   draftContent: Record<string, string>;
+
   isEditorMode: boolean;
   setIsEditorMode: (val: boolean) => void;
+
   activeEditId: string | null;
   setActiveEditId: (id: string | null) => void;
+
   hoveredEditId: string | null;
   setHoveredEditId: (id: string | null) => void;
+
   updateDraftValue: (id: string, value: string) => void;
+
   hasUnsavedChanges: boolean;
   isSaving: boolean;
+
   saveAllChanges: () => Promise<boolean>;
+
   resetField: (id: string) => void;
   resetSection: (sectionKey: string) => void;
   resetAll: () => Promise<void>;
+
   getText: (id: string, fallback?: string) => string;
 
-  // Multilingual System
   language: SupportedLanguage;
   setLanguage: (lang: SupportedLanguage) => void;
   dir: 'rtl' | 'ltr';
 
-  // Text Size Management
   getTextSize: (id: string) => number;
   setTextSize: (id: string, size: number) => void;
   updateTextSize: (id: string, delta: number) => void;
 
-  // Text Deletion Management
   isFieldDeleted: (id: string) => boolean;
   toggleFieldDeleted: (id: string) => void;
   setFieldDeleted: (id: string, deleted: boolean) => void;
 
-  // Container Deletion Management
   isContainerDeleted: (id: string) => boolean;
   toggleContainerDeleted: (id: string) => void;
   setContainerDeleted: (id: string, deleted: boolean) => void;
 
-  // Whether cached/server content has been resolved enough for the site to render.
-  // Returning visitors can render immediately from local cache.
   isContentReady: boolean;
 }
 
@@ -185,22 +228,27 @@ function getInitialLanguage(): SupportedLanguage {
   if (typeof window !== 'undefined') {
     try {
       const saved = localStorage.getItem(LANGUAGE_STORAGE_KEY);
+
       if (saved === 'en' || saved === 'ar' || saved === 'fa') {
         return saved;
       }
     } catch {}
   }
+
   return 'fa';
 }
 
-// Read the last known-good content from localStorage synchronously,
-// so the very first render already has the real text instead of defaults.
 function readCachedContent(): Record<string, string> | null {
-  if (typeof window === 'undefined') return null;
+  if (typeof window === 'undefined') {
+    return null;
+  }
 
   try {
     const raw = localStorage.getItem(CONTENT_STORAGE_KEY);
-    if (!raw) return null;
+
+    if (!raw) {
+      return null;
+    }
 
     const parsed = JSON.parse(raw);
 
@@ -218,7 +266,9 @@ function readCachedContent(): Record<string, string> | null {
 }
 
 function writeCachedContent(data: Record<string, string>) {
-  if (typeof window === 'undefined') return;
+  if (typeof window === 'undefined') {
+    return;
+  }
 
   try {
     localStorage.setItem(
@@ -233,37 +283,61 @@ function writeCachedContent(data: Record<string, string>) {
 
 function getInitialContent(): Record<string, string> {
   const cached = readCachedContent();
+
   return cached ?? { ...DEFAULT_SITE_CONTENT };
 }
 
-export const ContentProvider: React.FC<{ children: React.ReactNode }> = ({
-  children,
-}) => {
+export const ContentProvider: React.FC<{
+  children: React.ReactNode;
+}> = ({ children }) => {
   const [language, setLanguageState] =
     useState<SupportedLanguage>(getInitialLanguage);
 
-  // Cache-first initial state.
+  /*
+   * IMPORTANT:
+   * getInitialContent() runs synchronously during the initial render.
+   *
+   * If a previous successful server response exists in localStorage,
+   * that exact content is rendered immediately.
+   *
+   * Otherwise the application starts with DEFAULT_SITE_CONTENT.
+   */
   const [content, setContent] =
     useState<Record<string, string>>(getInitialContent);
 
   const [draftContent, setDraftContent] =
     useState<Record<string, string>>(getInitialContent);
 
-  const [isEditorMode, setIsEditorMode] = useState<boolean>(false);
-  const [activeEditId, setActiveEditId] = useState<string | null>(null);
-  const [hoveredEditId, setHoveredEditId] = useState<string | null>(null);
-  const [isSaving, setIsSaving] = useState<boolean>(false);
+  const [isEditorMode, setIsEditorMode] =
+    useState<boolean>(false);
 
-  // Cache-first startup:
-  // Returning visitors can render the last known-good content immediately.
-  // First-time visitors wait only when there is no local cache at all.
-  const [isContentReady, setIsContentReady] = useState<boolean>(
-    () => readCachedContent() !== null
-  );
+  const [activeEditId, setActiveEditId] =
+    useState<string | null>(null);
 
-  const dir: 'rtl' | 'ltr' = language === 'en' ? 'ltr' : 'rtl';
+  const [hoveredEditId, setHoveredEditId] =
+    useState<string | null>(null);
 
-  // Synchronize document dir and lang attributes without layout flashes
+  const [isSaving, setIsSaving] =
+    useState<boolean>(false);
+
+  /*
+   * This state is kept for compatibility with the existing application.
+   *
+   * It NO LONGER controls whether children are rendered.
+   *
+   * This is critical:
+   * a slow/hanging /api/content request must never block the entire
+   * website from rendering.
+   */
+  const [isContentReady, setIsContentReady] =
+    useState<boolean>(() => readCachedContent() !== null);
+
+  const dir: 'rtl' | 'ltr' =
+    language === 'en' ? 'ltr' : 'rtl';
+
+  /*
+   * Synchronize document language and direction.
+   */
   useEffect(() => {
     if (typeof document !== 'undefined') {
       document.documentElement.dir = dir;
@@ -271,51 +345,88 @@ export const ContentProvider: React.FC<{ children: React.ReactNode }> = ({
     }
   }, [language, dir]);
 
-  // Update language and persist to localStorage
-  const setLanguage = useCallback((newLang: SupportedLanguage) => {
-    setLanguageState(newLang);
+  /*
+   * Language setter.
+   */
+  const setLanguage = useCallback(
+    (newLang: SupportedLanguage) => {
+      setLanguageState(newLang);
 
-    if (typeof window !== 'undefined') {
-      try {
-        localStorage.setItem(LANGUAGE_STORAGE_KEY, newLang);
-      } catch {}
-    }
+      if (typeof window !== 'undefined') {
+        try {
+          localStorage.setItem(
+            LANGUAGE_STORAGE_KEY,
+            newLang
+          );
+        } catch {}
+      }
 
-    if (typeof document !== 'undefined') {
-      document.documentElement.dir = newLang === 'en' ? 'ltr' : 'rtl';
-      document.documentElement.lang = newLang;
-    }
-  }, []);
+      if (typeof document !== 'undefined') {
+        document.documentElement.dir =
+          newLang === 'en' ? 'ltr' : 'rtl';
 
-  // Cache-first loading:
-  // - Returning visitors render cached content immediately.
-  // - The server is refreshed in the background.
-  // - If cached content already exists, the background response is NOT applied
-  //   to the current screen. This prevents the old-text -> new-text flash.
-  // - The fresh server response is saved to cache for the next visit.
-  // - First-time visitors with no cache use the server response as their
-  //   initial content once it arrives.
+        document.documentElement.lang = newLang;
+      }
+    },
+    []
+  );
+
+  /*
+   * SERVER CONTENT REFRESH
+   *
+   * Returning visitor:
+   *   1. Cached content is already visible.
+   *   2. Server is requested in the background.
+   *   3. New server content is written to cache.
+   *   4. Current visible content is NOT replaced.
+   *
+   * This prevents:
+   *
+   *   old text
+   *      ↓
+   *   new server text
+   *
+   * during the same page load.
+   *
+   * First-time visitor:
+   *   There is no cache, so the first successful server response
+   *   becomes the visible content.
+   */
   useEffect(() => {
     let isMounted = true;
-    const hasCachedContent = readCachedContent() !== null;
+
+    const hasCachedContent =
+      readCachedContent() !== null;
 
     const loadContent = async () => {
       try {
-        const loaded = await contentRepository.getSiteContent();
+        const loaded =
+          await contentRepository.getSiteContent();
 
-        if (!isMounted) return;
+        if (!isMounted) {
+          return;
+        }
 
         if (
           loaded &&
           typeof loaded === 'object' &&
           Object.keys(loaded).length > 0
         ) {
-          // Always keep the newest server response for the next visit.
+          /*
+           * Always save the newest server response.
+           *
+           * This means the NEXT page visit gets the newest content
+           * immediately.
+           */
           writeCachedContent(loaded);
 
-          // Only block/update the visible content for a first-time visitor.
-          // If cached content was already rendered, replacing it here would
-          // create the visible text flash we are explicitly avoiding.
+          /*
+           * Only initialize the visible content from the server
+           * when this is genuinely the first visit and no cache
+           * existed before the request started.
+           *
+           * If cache existed, do NOT update the visible page.
+           */
           if (!hasCachedContent) {
             setContent(loaded);
             setDraftContent(loaded);
@@ -325,8 +436,14 @@ export const ContentProvider: React.FC<{ children: React.ReactNode }> = ({
             'Site content response was empty; keeping local content.'
           );
         }
-      } catch (e) {
-        console.error('Failed to load site content:', e);
+      } catch (error) {
+        /*
+         * Never let content loading break the website.
+         */
+        console.warn(
+          'Failed to refresh site content:',
+          error
+        );
       } finally {
         if (isMounted) {
           setIsContentReady(true);
@@ -341,14 +458,23 @@ export const ContentProvider: React.FC<{ children: React.ReactNode }> = ({
     };
   }, []);
 
-  // Determine if there are unsaved changes
+  /*
+   * Detect unsaved editor changes.
+   */
   const hasUnsavedChanges = useMemo(() => {
     const draftKeys = Object.keys(draftContent);
     const contentKeys = Object.keys(content);
-    const allKeys = new Set([...draftKeys, ...contentKeys]);
+
+    const allKeys = new Set([
+      ...draftKeys,
+      ...contentKeys,
+    ]);
 
     for (const key of allKeys) {
-      if ((draftContent[key] ?? '') !== (content[key] ?? '')) {
+      if (
+        (draftContent[key] ?? '') !==
+        (content[key] ?? '')
+      ) {
         return true;
       }
     }
@@ -356,7 +482,9 @@ export const ContentProvider: React.FC<{ children: React.ReactNode }> = ({
     return false;
   }, [draftContent, content]);
 
-  // Update a single draft value in real-time
+  /*
+   * Update draft value.
+   */
   const updateDraftValue = useCallback(
     (id: string, value: string) => {
       const isMetaField =
@@ -376,54 +504,78 @@ export const ContentProvider: React.FC<{ children: React.ReactNode }> = ({
     [language]
   );
 
-  // Save all drafted changes to persistence
-  const saveAllChanges = useCallback(async (): Promise<boolean> => {
-    setIsSaving(true);
+  /*
+   * Save all changes.
+   */
+  const saveAllChanges = useCallback(
+    async (): Promise<boolean> => {
+      setIsSaving(true);
 
-    try {
-      const mergedContent = {
-        ...content,
-        ...draftContent,
-      };
+      try {
+        const mergedContent = {
+          ...content,
+          ...draftContent,
+        };
 
-      await contentRepository.saveSiteContent(mergedContent);
+        await contentRepository.saveSiteContent(
+          mergedContent
+        );
 
-      setContent(mergedContent);
-      setDraftContent(mergedContent);
+        setContent(mergedContent);
+        setDraftContent(mergedContent);
 
-      // Keep the cache in sync with what was just saved, so the next
-      // load (even before the network round-trip finishes) shows this.
-      writeCachedContent(mergedContent);
+        /*
+         * Keep local cache synchronized immediately.
+         */
+        writeCachedContent(mergedContent);
 
-      return true;
-    } catch (e) {
-      console.error('Failed to save content changes:', e);
-      throw e;
-    } finally {
-      setIsSaving(false);
-    }
-  }, [content, draftContent]);
+        return true;
+      } catch (error) {
+        console.error(
+          'Failed to save content changes:',
+          error
+        );
 
-  // Reset a specific field to factory default for current language & reset size/deletion
+        throw error;
+      } finally {
+        setIsSaving(false);
+      }
+    },
+    [content, draftContent]
+  );
+
+  /*
+   * Reset a single field.
+   */
   const resetField = useCallback(
     (id: string) => {
       setDraftContent((prev) => {
-        const updated = { ...prev };
+        const updated = {
+          ...prev,
+        };
 
         if (language === 'en') {
-          const enDefault = DEFAULT_CONTENT_EN[id] || '';
+          const enDefault =
+            DEFAULT_CONTENT_EN[id] || '';
+
           updated[`${id}:en`] = enDefault;
         } else if (language === 'ar') {
-          const arDefault = DEFAULT_CONTENT_AR[id] || '';
+          const arDefault =
+            DEFAULT_CONTENT_AR[id] || '';
+
           updated[`${id}:ar`] = arDefault;
         } else {
-          const def = getContentDefinition(id);
-          updated[id] = def ? def.defaultValue : '';
+          const def =
+            getContentDefinition(id);
+
+          updated[id] =
+            def?.defaultValue ?? '';
         }
 
         updated[`${id}.__size`] = '';
         updated[`${id}.__deleted`] = 'false';
-        updated[`${id}.__hide_container`] = 'false';
+        updated[`${id}.__hide_container`] =
+          'false';
 
         return updated;
       });
@@ -431,33 +583,50 @@ export const ContentProvider: React.FC<{ children: React.ReactNode }> = ({
     [language]
   );
 
-  // Reset an entire section to factory defaults
+  /*
+   * Reset section.
+   */
   const resetSection = useCallback(
     async (sectionKey: string) => {
       const { CONTENT_DEFINITIONS } =
         await import('../data/defaultContent');
 
-      const items = CONTENT_DEFINITIONS.filter(
-        (item) => item.sectionKey === sectionKey
-      );
+      const items =
+        CONTENT_DEFINITIONS.filter(
+          (item) =>
+            item.sectionKey === sectionKey
+        );
 
       setDraftContent((prev) => {
-        const updated = { ...prev };
+        const updated = {
+          ...prev,
+        };
 
         items.forEach((item) => {
           if (language === 'en') {
             updated[`${item.id}:en`] =
-              DEFAULT_CONTENT_EN[item.id] || '';
+              DEFAULT_CONTENT_EN[item.id] ||
+              '';
           } else if (language === 'ar') {
             updated[`${item.id}:ar`] =
-              DEFAULT_CONTENT_AR[item.id] || '';
+              DEFAULT_CONTENT_AR[item.id] ||
+              '';
           } else {
-            updated[item.id] = item.defaultValue;
+            updated[item.id] =
+              item.defaultValue;
           }
 
-          delete updated[`${item.id}.__size`];
-          delete updated[`${item.id}.__deleted`];
-          delete updated[`${item.id}.__hide_container`];
+          delete updated[
+            `${item.id}.__size`
+          ];
+
+          delete updated[
+            `${item.id}.__deleted`
+          ];
+
+          delete updated[
+            `${item.id}.__hide_container`
+          ];
         });
 
         return updated;
@@ -466,39 +635,67 @@ export const ContentProvider: React.FC<{ children: React.ReactNode }> = ({
     [language]
   );
 
-  // Reset everything to factory defaults
+  /*
+   * Reset everything.
+   */
   const resetAll = useCallback(async () => {
-    const res = await contentRepository.resetAll();
+    const res =
+      await contentRepository.resetAll();
 
     setContent(res);
     setDraftContent(res);
     setActiveEditId(null);
+
     writeCachedContent(res);
   }, []);
 
-  // Text Size Helpers
+  /*
+   * Text size helpers.
+   */
   const getTextSize = useCallback(
     (id: string): number => {
-      const source = isEditorMode ? draftContent : content;
-      const sizeVal = source[`${id}.__size`];
+      const source = isEditorMode
+        ? draftContent
+        : content;
 
-      if (sizeVal !== undefined && sizeVal !== '') {
-        const parsed = parseInt(sizeVal, 10);
-        return isNaN(parsed) ? 0 : parsed;
+      const sizeVal =
+        source[`${id}.__size`];
+
+      if (
+        sizeVal !== undefined &&
+        sizeVal !== ''
+      ) {
+        const parsed = parseInt(
+          sizeVal,
+          10
+        );
+
+        return Number.isNaN(parsed)
+          ? 0
+          : parsed;
       }
 
       return 0;
     },
-    [isEditorMode, draftContent, content]
+    [
+      isEditorMode,
+      draftContent,
+      content,
+    ]
   );
 
   const setTextSize = useCallback(
     (id: string, size: number) => {
-      const clamped = Math.max(-2, Math.min(3, size));
+      const clamped = Math.max(
+        -2,
+        Math.min(3, size)
+      );
 
       updateDraftValue(
         `${id}.__size`,
-        clamped === 0 ? '' : String(clamped)
+        clamped === 0
+          ? ''
+          : String(clamped)
       );
     },
     [updateDraftValue]
@@ -506,326 +703,486 @@ export const ContentProvider: React.FC<{ children: React.ReactNode }> = ({
 
   const updateTextSize = useCallback(
     (id: string, delta: number) => {
-      const current = getTextSize(id);
-      setTextSize(id, current + delta);
+      const current =
+        getTextSize(id);
+
+      setTextSize(
+        id,
+        current + delta
+      );
     },
-    [getTextSize, setTextSize]
+    [
+      getTextSize,
+      setTextSize,
+    ]
   );
 
-  // Text Deletion Helpers
+  /*
+   * Text deletion helpers.
+   */
   const isFieldDeleted = useCallback(
     (id: string): boolean => {
-      const source = isEditorMode ? draftContent : content;
-      return source[`${id}.__deleted`] === 'true';
-    },
-    [isEditorMode, draftContent, content]
-  );
+      const source = isEditorMode
+        ? draftContent
+        : content;
 
-  const setFieldDeleted = useCallback(
-    (id: string, deleted: boolean) => {
-      updateDraftValue(
-        `${id}.__deleted`,
-        deleted ? 'true' : 'false'
+      return (
+        source[
+          `${id}.__deleted`
+        ] === 'true'
       );
     },
-    [updateDraftValue]
+    [
+      isEditorMode,
+      draftContent,
+      content,
+    ]
   );
 
-  const toggleFieldDeleted = useCallback(
-    (id: string) => {
-      const deleted = isFieldDeleted(id);
-      setFieldDeleted(id, !deleted);
-    },
-    [isFieldDeleted, setFieldDeleted]
-  );
+  const setFieldDeleted =
+    useCallback(
+      (
+        id: string,
+        deleted: boolean
+      ) => {
+        updateDraftValue(
+          `${id}.__deleted`,
+          deleted
+            ? 'true'
+            : 'false'
+        );
+      },
+      [updateDraftValue]
+    );
 
-  // Container / Frame Deletion Helpers
-  const isContainerDeleted = useCallback(
-    (id: string): boolean => {
-      const source = isEditorMode ? draftContent : content;
-      return source[`${id}.__hide_container`] === 'true';
-    },
-    [isEditorMode, draftContent, content]
-  );
+  const toggleFieldDeleted =
+    useCallback(
+      (id: string) => {
+        const deleted =
+          isFieldDeleted(id);
 
-  const setContainerDeleted = useCallback(
-    (id: string, deleted: boolean) => {
-      updateDraftValue(
-        `${id}.__hide_container`,
-        deleted ? 'true' : 'false'
-      );
-    },
-    [updateDraftValue]
-  );
+        setFieldDeleted(
+          id,
+          !deleted
+        );
+      },
+      [
+        isFieldDeleted,
+        setFieldDeleted,
+      ]
+    );
 
-  const toggleContainerDeleted = useCallback(
-    (id: string) => {
-      const deleted = isContainerDeleted(id);
-      setContainerDeleted(id, !deleted);
-    },
-    [isContainerDeleted, setContainerDeleted]
-  );
+  /*
+   * Container deletion helpers.
+   */
+  const isContainerDeleted =
+    useCallback(
+      (id: string): boolean => {
+        const source = isEditorMode
+          ? draftContent
+          : content;
 
-  // Read current display text based on active language and editor/public mode
+        return (
+          source[
+            `${id}.__hide_container`
+          ] === 'true'
+        );
+      },
+      [
+        isEditorMode,
+        draftContent,
+        content,
+      ]
+    );
+
+  const setContainerDeleted =
+    useCallback(
+      (
+        id: string,
+        deleted: boolean
+      ) => {
+        updateDraftValue(
+          `${id}.__hide_container`,
+          deleted
+            ? 'true'
+            : 'false'
+        );
+      },
+      [updateDraftValue]
+    );
+
+  const toggleContainerDeleted =
+    useCallback(
+      (id: string) => {
+        const deleted =
+          isContainerDeleted(id);
+
+        setContainerDeleted(
+          id,
+          !deleted
+        );
+      },
+      [
+        isContainerDeleted,
+        setContainerDeleted,
+      ]
+    );
+
+  /*
+   * Main text resolver.
+   */
   const getText = useCallback(
-    (id: string, fallback?: string): string => {
-      const source = isEditorMode ? draftContent : content;
+    (
+      id: string,
+      fallback?: string
+    ): string => {
+      const source = isEditorMode
+        ? draftContent
+        : content;
 
-      // Handle cta.catalogButton / cta.downloadButton alias seamlessly
+      /*
+       * CTA aliases.
+       */
       let resolvedId = id;
 
       if (
         id === 'cta.catalogButton' &&
-        source['cta.catalogButton'] === undefined &&
-        source['cta.downloadButton'] !== undefined
+        source[
+          'cta.catalogButton'
+        ] === undefined &&
+        source[
+          'cta.downloadButton'
+        ] !== undefined
       ) {
-        resolvedId = 'cta.downloadButton';
+        resolvedId =
+          'cta.downloadButton';
       } else if (
         id === 'cta.downloadButton' &&
-        source['cta.downloadButton'] === undefined &&
-        source['cta.catalogButton'] !== undefined
+        source[
+          'cta.downloadButton'
+        ] === undefined &&
+        source[
+          'cta.catalogButton'
+        ] !== undefined
       ) {
-        resolvedId = 'cta.catalogButton';
+        resolvedId =
+          'cta.catalogButton';
       }
 
+      /*
+       * English.
+       */
       if (language === 'en') {
-        const localizedKey = `${resolvedId}:en`;
+        const localizedKey =
+          `${resolvedId}:en`;
 
         if (
-          source[localizedKey] !== undefined &&
-          source[localizedKey].trim() !== ''
+          source[localizedKey] !==
+            undefined &&
+          source[localizedKey]
+            .trim() !== ''
         ) {
           return source[localizedKey];
         }
 
-        if (DEFAULT_CONTENT_EN[resolvedId] !== undefined) {
-          return DEFAULT_CONTENT_EN[resolvedId];
+        if (
+          DEFAULT_CONTENT_EN[
+            resolvedId
+          ] !== undefined
+        ) {
+          return DEFAULT_CONTENT_EN[
+            resolvedId
+          ];
         }
 
-        if (DEFAULT_CONTENT_EN[id] !== undefined) {
+        if (
+          DEFAULT_CONTENT_EN[id] !==
+            undefined
+        ) {
           return DEFAULT_CONTENT_EN[id];
         }
 
-        // Check phrase dictionary for key, fallback, or persian default
-        if (PHRASE_DICTIONARY_EN[id] !== undefined) {
+        if (
+          PHRASE_DICTIONARY_EN[id] !==
+            undefined
+        ) {
           return PHRASE_DICTIONARY_EN[id];
         }
 
         if (
           fallback &&
-          PHRASE_DICTIONARY_EN[fallback] !== undefined
+          PHRASE_DICTIONARY_EN[
+            fallback
+          ] !== undefined
         ) {
-          return PHRASE_DICTIONARY_EN[fallback];
+          return PHRASE_DICTIONARY_EN[
+            fallback
+          ];
         }
 
         if (
           source[resolvedId] &&
-          PHRASE_DICTIONARY_EN[source[resolvedId]] !== undefined
+          PHRASE_DICTIONARY_EN[
+            source[resolvedId]
+          ] !== undefined
         ) {
-          return PHRASE_DICTIONARY_EN[source[resolvedId]];
+          return PHRASE_DICTIONARY_EN[
+            source[resolvedId]
+          ];
         }
 
         const def =
-          getContentDefinition(resolvedId) ||
+          getContentDefinition(
+            resolvedId
+          ) ||
           getContentDefinition(id);
 
         if (
           def?.defaultValue &&
-          PHRASE_DICTIONARY_EN[def.defaultValue] !== undefined
+          PHRASE_DICTIONARY_EN[
+            def.defaultValue
+          ] !== undefined
         ) {
-          return PHRASE_DICTIONARY_EN[def.defaultValue];
+          return PHRASE_DICTIONARY_EN[
+            def.defaultValue
+          ];
         }
-      } else if (language === 'ar') {
-        const localizedKey = `${resolvedId}:ar`;
+      }
+
+      /*
+       * Arabic.
+       */
+      if (language === 'ar') {
+        const localizedKey =
+          `${resolvedId}:ar`;
 
         if (
-          source[localizedKey] !== undefined &&
-          source[localizedKey].trim() !== ''
+          source[localizedKey] !==
+            undefined &&
+          source[localizedKey]
+            .trim() !== ''
         ) {
           return source[localizedKey];
         }
 
-        if (DEFAULT_CONTENT_AR[resolvedId] !== undefined) {
-          return DEFAULT_CONTENT_AR[resolvedId];
+        if (
+          DEFAULT_CONTENT_AR[
+            resolvedId
+          ] !== undefined
+        ) {
+          return DEFAULT_CONTENT_AR[
+            resolvedId
+          ];
         }
 
-        if (DEFAULT_CONTENT_AR[id] !== undefined) {
+        if (
+          DEFAULT_CONTENT_AR[id] !==
+            undefined
+        ) {
           return DEFAULT_CONTENT_AR[id];
         }
 
-        // Check phrase dictionary for key, fallback, or persian default
-        if (PHRASE_DICTIONARY_AR[id] !== undefined) {
+        if (
+          PHRASE_DICTIONARY_AR[id] !==
+            undefined
+        ) {
           return PHRASE_DICTIONARY_AR[id];
         }
 
         if (
           fallback &&
-          PHRASE_DICTIONARY_AR[fallback] !== undefined
+          PHRASE_DICTIONARY_AR[
+            fallback
+          ] !== undefined
         ) {
-          return PHRASE_DICTIONARY_AR[fallback];
+          return PHRASE_DICTIONARY_AR[
+            fallback
+          ];
         }
 
         if (
           source[resolvedId] &&
-          PHRASE_DICTIONARY_AR[source[resolvedId]] !== undefined
+          PHRASE_DICTIONARY_AR[
+            source[resolvedId]
+          ] !== undefined
         ) {
-          return PHRASE_DICTIONARY_AR[source[resolvedId]];
+          return PHRASE_DICTIONARY_AR[
+            source[resolvedId]
+          ];
         }
 
         const def =
-          getContentDefinition(resolvedId) ||
+          getContentDefinition(
+            resolvedId
+          ) ||
           getContentDefinition(id);
 
         if (
           def?.defaultValue &&
-          PHRASE_DICTIONARY_AR[def.defaultValue] !== undefined
+          PHRASE_DICTIONARY_AR[
+            def.defaultValue
+          ] !== undefined
         ) {
-          return PHRASE_DICTIONARY_AR[def.defaultValue];
+          return PHRASE_DICTIONARY_AR[
+            def.defaultValue
+          ];
         }
       }
 
-      // Default Persian language lookup
-      if (Object.prototype.hasOwnProperty.call(source, resolvedId)) {
+      /*
+       * Persian / default.
+       */
+      if (
+        Object.prototype.hasOwnProperty.call(
+          source,
+          resolvedId
+        )
+      ) {
         return source[resolvedId];
       }
 
-      if (fallback !== undefined) {
+      if (
+        fallback !== undefined
+      ) {
         return fallback;
       }
 
       const def =
-        getContentDefinition(resolvedId) ||
+        getContentDefinition(
+          resolvedId
+        ) ||
         getContentDefinition(id);
 
-      return def ? def.defaultValue : '';
+      return def
+        ? def.defaultValue
+        : '';
     },
-    [isEditorMode, draftContent, content, language]
+    [
+      isEditorMode,
+      draftContent,
+      content,
+      language,
+    ]
   );
 
+  /*
+   * Context value.
+   */
   const value = useMemo(
     () => ({
       content,
       draftContent,
+
       isEditorMode,
       setIsEditorMode,
+
       activeEditId,
       setActiveEditId,
+
       hoveredEditId,
       setHoveredEditId,
+
       updateDraftValue,
+
       hasUnsavedChanges,
       isSaving,
+
       saveAllChanges,
+
       resetField,
       resetSection,
       resetAll,
+
       getText,
+
       language,
       setLanguage,
       dir,
+
       getTextSize,
       setTextSize,
       updateTextSize,
+
       isFieldDeleted,
       toggleFieldDeleted,
       setFieldDeleted,
+
       isContainerDeleted,
       toggleContainerDeleted,
       setContainerDeleted,
+
       isContentReady,
     }),
     [
       content,
       draftContent,
+
       isEditorMode,
+
       activeEditId,
       hoveredEditId,
+
       updateDraftValue,
+
       hasUnsavedChanges,
       isSaving,
+
       saveAllChanges,
+
       resetField,
       resetSection,
       resetAll,
+
       getText,
+
       language,
       setLanguage,
       dir,
+
       getTextSize,
       setTextSize,
       updateTextSize,
+
       isFieldDeleted,
       toggleFieldDeleted,
       setFieldDeleted,
+
       isContainerDeleted,
       toggleContainerDeleted,
       setContainerDeleted,
+
       isContentReady,
     ]
   );
 
+  /*
+   * IMPORTANT:
+   *
+   * ContentProvider must NEVER block the application while
+   * /api/content is loading.
+   *
+   * The application itself decides whether it wants to show
+   * a short startup splash.
+   *
+   * Therefore children are ALWAYS rendered here.
+   */
   return (
     <ContentContext.Provider value={value}>
-      {isContentReady ? (
-        children
-      ) : (
-        <div
-          aria-busy="true"
-          aria-label="در حال بارگذاری"
-          style={{
-            minHeight: '100vh',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            background: '#ffffff',
-            color: '#111111',
-            fontFamily: 'inherit',
-          }}
-        >
-          <div
-            style={{
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              gap: '14px',
-            }}
-          >
-            <div
-              style={{
-                width: '28px',
-                height: '28px',
-                border: '2px solid rgba(17,17,17,0.12)',
-                borderTopColor: '#111111',
-                borderRadius: '50%',
-                animation:
-                  'ideahome-content-loader 0.8s linear infinite',
-              }}
-            />
-
-            <span style={{ fontSize: '13px', opacity: 0.55 }}>
-              در حال بارگذاری...
-            </span>
-          </div>
-
-          <style>{`
-            @keyframes ideahome-content-loader {
-              to { transform: rotate(360deg); }
-            }
-          `}</style>
-        </div>
-      )}
+      {children}
     </ContentContext.Provider>
   );
 };
 
-export const useSiteContent = (): ContentContextType => {
-  const ctx = useContext(ContentContext);
+export const useSiteContent =
+  (): ContentContextType => {
+    const ctx =
+      useContext(ContentContext);
 
-  if (!ctx) {
-    throw new Error(
-      'useSiteContent must be used within a ContentProvider'
-    );
-  }
+    if (!ctx) {
+      throw new Error(
+        'useSiteContent must be used within a ContentProvider'
+      );
+    }
 
-  return ctx;
-};
+    return ctx;
+  };
