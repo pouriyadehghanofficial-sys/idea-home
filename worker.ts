@@ -70,16 +70,31 @@ async function callHandler(
   env: Env,
   params: Record<string, string> = {}
 ): Promise<Response> {
-  return handler({
+  const res = await handler({
     request,
     env,
     params,
-
-  waitUntil: (promise: Promise<any>) => {
-    return promise;
-  },
-
+    waitUntil: (promise: Promise<any>) => {
+      return promise;
+    },
     next: () => env.ASSETS.fetch(request),
+  });
+
+  const headers = new Headers(res.headers);
+  if (!headers.has("Access-Control-Allow-Origin")) {
+    headers.set("Access-Control-Allow-Origin", "*");
+  }
+  if (!headers.has("Access-Control-Allow-Methods")) {
+    headers.set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS, PATCH");
+  }
+  if (!headers.has("Access-Control-Allow-Headers")) {
+    headers.set("Access-Control-Allow-Headers", "*");
+  }
+
+  return new Response(res.body, {
+    status: res.status,
+    statusText: res.statusText,
+    headers,
   });
 }
 
@@ -96,6 +111,9 @@ function apiNotFound(path: string): Response {
       headers: {
         "Content-Type": "application/json; charset=utf-8",
         "Cache-Control": "no-store",
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS, PATCH",
+        "Access-Control-Allow-Headers": "*",
       },
     }
   );
@@ -109,8 +127,26 @@ export default {
   ): Promise<Response> {
 
     const url = new URL(request.url);
-    const path = url.pathname;
+    let path = url.pathname;
+    if (path.length > 1 && path.endsWith("/")) {
+      path = path.slice(0, -1);
+    }
     const method = request.method.toUpperCase();
+
+    // ==========================================
+    // GLOBAL CORS PREFLIGHT (OPTIONS) HANDLER
+    // ==========================================
+    if (method === "OPTIONS" && path.startsWith("/api/")) {
+      return new Response(null, {
+        status: 204,
+        headers: {
+          "Access-Control-Allow-Origin": "*",
+          "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS, PATCH",
+          "Access-Control-Allow-Headers": "*",
+          "Access-Control-Max-Age": "86400",
+        },
+      });
+    }
 
 
     // =========================
@@ -554,56 +590,51 @@ export default {
     // =========================
     // UPLOAD
     // =========================
-    
+
     if (path === "/api/upload") {
-    
-      // CORS preflight
-      if (method === "OPTIONS") {
-    
-        return new Response(null, {
-          status: 204,
-          headers: {
-            "Access-Control-Allow-Origin": "*",
-            "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS",
-            "Access-Control-Allow-Headers": "*",
-            "Access-Control-Max-Age": "86400",
-          },
-        });
-    
+
+
+      if (
+        method === "OPTIONS" &&
+        upload.onRequestOptions
+      ) {
+        return callHandler(
+          upload.onRequestOptions,
+          request,
+          env
+        );
       }
-    
-    
+
+
       if (
         method === "POST" &&
         upload.onRequestPost
       ) {
-    
         return callHandler(
           upload.onRequestPost,
           request,
           env
         );
-    
       }
-    
-    
+
+
       if (
         method === "DELETE" &&
         upload.onRequestDelete
       ) {
-    
         return callHandler(
           upload.onRequestDelete,
           request,
           env
         );
-    
       }
-    
-    
+
+
       return apiNotFound(path);
-    
+
     }
+
+
     // =========================
     // UPLOAD SIGN
     // =========================
@@ -663,6 +694,15 @@ export default {
         );
       }
 
+      return apiNotFound(path);
+    }
+
+
+    // =========================
+    // UNMATCHED API ROUTES
+    // =========================
+
+    if (path.startsWith("/api/")) {
       return apiNotFound(path);
     }
 
