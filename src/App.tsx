@@ -1051,13 +1051,8 @@ function AppInner() {
   // It does not wait for secondary site data.
   // ---------------------------------------------------------------------------
 
-  if (
-    !isContentReady ||
-    !startupDelayComplete
-  ) {
-    return (
-      <ContentLoadingScreen />
-    );
+  if (!startupDelayComplete) {
+    return <ContentLoadingScreen />;
   }
 
   // ---------------------------------------------------------------------------
