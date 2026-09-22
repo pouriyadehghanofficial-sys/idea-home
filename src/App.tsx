@@ -17,7 +17,7 @@ import { CoverflowLandingPage } from './components/CoverflowLandingPage';
 import { KitchenProductItem } from './data/kitchenProducts';
 import { getSafeDownloadUrl } from './utils/catalogDownload';
 import { SliderProduct } from './types';
-import { ContentProvider } from './context/ContentContext';
+import { ContentProvider, useSiteContent } from './context/ContentContext';
 import { ViewportProvider } from './context/ViewportContext';
 
 // Lazy loaded interactive modals - non-blocking for initial page load
@@ -52,7 +52,30 @@ const PageFallback = () => (
   </div>
 );
 
+// Full-screen splash shown until the real site content has arrived from the
+// server. Prevents a flash of stale (cached) or hardcoded default text on
+// every page load.
+const ContentLoadingScreen = () => (
+  <div
+    style={{
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      height: '100vh',
+      width: '100vw',
+      backgroundColor: '#1E4B57',
+    }}
+  >
+    <div className="w-8 h-8 border-2 border-[#D4AF37] border-t-transparent rounded-full animate-spin" />
+  </div>
+);
+
 function AppInner() {
+  // Real site content (fetched from server, cached in localStorage as a
+  // fast-paint fallback). isContentReady stays false until the authoritative
+  // server response has been applied, so we can gate rendering on it below.
+  const { isContentReady } = useSiteContent();
+
   // Navigation State: default to IDEA HOME site shell
   const [currentTab, setCurrentTab] = useState<string>(() => {
     const hash = window.location.hash.toLowerCase().replace(/^#\/?|\/$/g, '');
@@ -63,7 +86,6 @@ function AppInner() {
     return 'home';
   });
   const currentTabRef = React.useRef<string>(currentTab);
-
   useEffect(() => {
     currentTabRef.current = currentTab;
   }, [currentTab]);
@@ -359,6 +381,13 @@ function AppInner() {
     setIsOrderModalOpen(true);
   };
 
+  // Gate: don't paint any content (cached OR hardcoded defaults) until the
+  // authoritative content has come back from the server. Placed AFTER every
+  // hook call above so hook order never changes between renders.
+  if (!isContentReady) {
+    return <ContentLoadingScreen />;
+  }
+
   // Dedicated Secret Admin Login View
   if (currentTab === 'admin-login') {
     return (
@@ -407,7 +436,6 @@ function AppInner() {
               }}
             />
           )}
-
           {currentTab === 'admin-products' && (
             <AdminProducts
               products={products}
@@ -418,7 +446,6 @@ function AppInner() {
               isModalOpenInitially={openProductModalOnAdmin}
             />
           )}
-
           {currentTab === 'admin-visual-editor' && (
             <AdminVisualEditor
               onNavigate={handleAdminNavigate}
@@ -428,39 +455,33 @@ function AppInner() {
               companyPhotos={companyPhotos}
             />
           )}
-
           {currentTab === 'admin-catalog' && (
             <AdminCatalog
               catalog={catalog || INITIAL_CATALOG}
               onUpdateCatalog={handleUpdateCatalog}
             />
           )}
-
           {currentTab === 'admin-price-list' && (
             <AdminPriceList
               priceList={priceList || INITIAL_PRICE_LIST}
               onUpdatePriceList={handleUpdatePriceList}
             />
           )}
-
           {currentTab === 'admin-categories' && (
             <AdminCategories
               categories={categories}
               onRefresh={loadAdminData}
             />
           )}
-
           {currentTab === 'admin-company-photos' && (
             <AdminCompanyPhotos />
           )}
-
           {currentTab === 'admin-slider' && (
             <AdminSlider
               items={sliderProducts}
               onSave={handleSaveSliderProducts}
             />
           )}
-
           {currentTab === 'admin-messages' && (
             <AdminMessages
               messages={messages}
@@ -468,7 +489,6 @@ function AppInner() {
               onDeleteMessage={handleDeleteMessage}
             />
           )}
-
           {currentTab === 'admin-settings' && catalog && (
             <AdminSettings
               currentUser={currentUser}
@@ -480,7 +500,6 @@ function AppInner() {
               onUpdateAdminProfile={handleUpdateAdminProfile}
             />
           )}
-
           {currentTab === 'admin-cloudflare' && <CloudflareGuide />}
         </AdminLayout>
       </Suspense>
