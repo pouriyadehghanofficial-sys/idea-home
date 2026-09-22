@@ -40,7 +40,10 @@ import {
 } from './context/ContentContext';
 import { ViewportProvider } from './context/ViewportContext';
 
-// Lazy loaded interactive modals - non-blocking for initial page load
+// -----------------------------------------------------------------------------
+// LAZY LOADED COMPONENTS
+// -----------------------------------------------------------------------------
+
 const OrderModal = lazy(() =>
   import('./components/OrderModal').then((m) => ({
     default: m.OrderModal,
@@ -53,7 +56,6 @@ const BatchEstimatorModal = lazy(() =>
   }))
 );
 
-// Lazy loaded public sub-pages
 const CategoriesPage = lazy(() =>
   import('./pages/CategoriesPage').then((m) => ({
     default: m.CategoriesPage,
@@ -66,8 +68,6 @@ const CompanyPhotosPage = lazy(() =>
   }))
 );
 
-// Lazy loaded secure admin components - completely excluded from
-// standard visitor JS bundle
 const AdminLogin = lazy(() =>
   import('./pages/admin/AdminLogin').then((m) => ({
     default: m.AdminLogin,
@@ -146,6 +146,10 @@ const CloudflareGuide = lazy(() =>
   }))
 );
 
+// -----------------------------------------------------------------------------
+// FALLBACKS
+// -----------------------------------------------------------------------------
+
 const PageFallback = () => (
   <div
     className="min-h-[40vh] flex items-center justify-center p-8 text-[#EDEAE4]/70"
@@ -161,40 +165,109 @@ const PageFallback = () => (
 );
 
 /**
- * Full-screen splash shown only when there is no cached site content.
+ * Short startup splash.
  *
- * Returning visitors should already have content from ContentContext's
- * synchronous local cache and therefore should never see this screen.
+ * Important:
+ * - It does NOT perform network requests.
+ * - It does NOT wait for secondary public data.
+ * - ContentContext handles the actual content cache/server logic.
+ * - Returning visitors with cached content only see this briefly.
+ * - First-time visitors remain here until ContentContext is ready.
  */
 const ContentLoadingScreen = () => (
   <div
     style={{
+      position: 'fixed',
+      inset: 0,
+      zIndex: 99999,
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
-      height: '100vh',
-      width: '100vw',
+      width: '100%',
+      height: '100%',
       backgroundColor: '#1E4B57',
+      direction: 'rtl',
     }}
   >
-    <div className="w-8 h-8 border-2 border-[#D4AF37] border-t-transparent rounded-full animate-spin" />
+    <div
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: '18px',
+      }}
+    >
+      <div
+        style={{
+          width: '42px',
+          height: '42px',
+          border: '3px solid rgba(212,175,55,0.25)',
+          borderTopColor: '#D4AF37',
+          borderRadius: '50%',
+          animation: 'idea-home-spin 0.8s linear infinite',
+        }}
+      />
+
+      <div
+        style={{
+          color: 'rgba(237,234,228,0.9)',
+          fontSize: '13px',
+          fontFamily: 'Vazir, sans-serif',
+          letterSpacing: '0.02em',
+        }}
+      >
+        آیدیا هوم
+      </div>
+    </div>
+
+    <style>
+      {`
+        @keyframes idea-home-spin {
+          from {
+            transform: rotate(0deg);
+          }
+
+          to {
+            transform: rotate(360deg);
+          }
+        }
+      `}
+    </style>
   </div>
 );
 
+// -----------------------------------------------------------------------------
+// APP INNER
+// -----------------------------------------------------------------------------
+
 function AppInner() {
-  /*
-   * Content is handled by ContentContext.
-   *
-   * Returning visitor:
-   *   cached content -> immediate render
-   *   server revalidation -> background
-   *
-   * First-time visitor:
-   *   waits only until the first server content is available.
-   */
   const { isContentReady } = useSiteContent();
 
-  // Navigation State
+  /*
+   * Short visual startup delay.
+   *
+   * This is intentionally independent from the network.
+   * The goal is to prevent a very short first-paint transition from
+   * exposing fallback/default content before the final site shell appears.
+   */
+  const [startupDelayComplete, setStartupDelayComplete] =
+    useState(false);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setStartupDelayComplete(true);
+    }, 1200);
+
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, []);
+
+  // ---------------------------------------------------------------------------
+  // NAVIGATION
+  // ---------------------------------------------------------------------------
+
   const [currentTab, setCurrentTab] = useState<string>(() => {
     const hash = window.location.hash
       .toLowerCase()
@@ -203,20 +276,28 @@ function AppInner() {
     if (hash.startsWith('admin')) return 'admin-login';
     if (hash.startsWith('categories')) return 'categories';
     if (hash.startsWith('company-photos')) return 'company-photos';
-    if (hash === 'coverflow' || hash === 'carousel') {
+
+    if (
+      hash === 'coverflow' ||
+      hash === 'carousel'
+    ) {
       return 'coverflow';
     }
 
     return 'home';
   });
 
-  const currentTabRef = React.useRef<string>(currentTab);
+  const currentTabRef =
+    React.useRef<string>(currentTab);
 
   useEffect(() => {
     currentTabRef.current = currentTab;
   }, [currentTab]);
 
-  // Interactive Modals
+  // ---------------------------------------------------------------------------
+  // MODALS
+  // ---------------------------------------------------------------------------
+
   const [isOrderModalOpen, setIsOrderModalOpen] =
     useState<boolean>(false);
 
@@ -226,7 +307,10 @@ function AppInner() {
   const [isEstimatorOpen, setIsEstimatorOpen] =
     useState<boolean>(false);
 
-  // Admin / public data state
+  // ---------------------------------------------------------------------------
+  // DATA
+  // ---------------------------------------------------------------------------
+
   const [products, setProducts] = useState<Product[]>(() =>
     sanitizeProducts(INITIAL_PRODUCTS)
   );
@@ -242,10 +326,14 @@ function AppInner() {
     useState<PriceListInfo>(() => INITIAL_PRICE_LIST);
 
   const [sliderProducts, setSliderProducts] =
-    useState<SliderProduct[]>(() => DEFAULT_SLIDER_PRODUCTS);
+    useState<SliderProduct[]>(() =>
+      DEFAULT_SLIDER_PRODUCTS
+    );
 
   const [companyPhotos, setCompanyPhotos] =
-    useState<CompanyPhoto[]>(() => INITIAL_COMPANY_PHOTOS);
+    useState<CompanyPhoto[]>(() =>
+      INITIAL_COMPANY_PHOTOS
+    );
 
   const [selectedCategoryNavId, setSelectedCategoryNavId] =
     useState<string>('');
@@ -264,17 +352,18 @@ function AppInner() {
   const [openProductModalOnAdmin, setOpenProductModalOnAdmin] =
     useState<boolean>(false);
 
-  // ------------------------------------------------------------------
+  // ---------------------------------------------------------------------------
   // ADMIN DATA
-  // ------------------------------------------------------------------
+  // ---------------------------------------------------------------------------
 
   const loadAdminData = async () => {
     try {
-      const [prods, cats, msgs] = await Promise.all([
-        storageService.getProducts(),
-        storageService.getCategories(),
-        storageService.getMessages(),
-      ]);
+      const [prods, cats, msgs] =
+        await Promise.all([
+          storageService.getProducts(),
+          storageService.getCategories(),
+          storageService.getMessages(),
+        ]);
 
       setProducts(prods);
       setCategories(cats);
@@ -287,29 +376,14 @@ function AppInner() {
     }
   };
 
-  // ------------------------------------------------------------------
-  // PUBLIC DATA - OPTIMIZED
-  //
-  // Critical:
-  //   Slider + Categories
-  //
-  // Secondary:
-  //   Catalog + Price List
-  //
-  // Deferred:
-  //   Company Photos
-  //
-  // This prevents all public storage requests from competing during
-  // the first browser paint.
-  // ------------------------------------------------------------------
+  // ---------------------------------------------------------------------------
+  // PUBLIC DATA
+  // ---------------------------------------------------------------------------
 
   const loadPublicData = async () => {
     setIsSliderLoading(true);
 
-    // --------------------------------------------------------------
-    // 1. CRITICAL ABOVE-THE-FOLD DATA
-    // --------------------------------------------------------------
-
+    // Critical above-the-fold data
     try {
       const [
         sliderItems,
@@ -323,14 +397,18 @@ function AppInner() {
         sliderItems &&
         sliderItems.length > 0
       ) {
-        setSliderProducts(sliderItems);
+        setSliderProducts(
+          sliderItems
+        );
       }
 
       if (
         allCategories &&
         allCategories.length > 0
       ) {
-        setCategories(allCategories);
+        setCategories(
+          allCategories
+        );
       }
     } catch (err) {
       console.error(
@@ -341,12 +419,7 @@ function AppInner() {
       setIsSliderLoading(false);
     }
 
-    // --------------------------------------------------------------
-    // 2. SECONDARY DATA
-    //
-    // These do not prevent the first page paint.
-    // --------------------------------------------------------------
-
+    // Secondary data
     const loadSecondaryData = async () => {
       try {
         const [
@@ -372,10 +445,7 @@ function AppInner() {
       }
     };
 
-    // --------------------------------------------------------------
-    // 3. DEFERRED BELOW-THE-FOLD DATA
-    // --------------------------------------------------------------
-
+    // Deferred below-the-fold data
     const loadDeferredData = async () => {
       try {
         const compPhotos =
@@ -385,7 +455,9 @@ function AppInner() {
           compPhotos &&
           compPhotos.length > 0
         ) {
-          setCompanyPhotos(compPhotos);
+          setCompanyPhotos(
+            compPhotos
+          );
         }
       } catch (err) {
         console.error(
@@ -395,10 +467,8 @@ function AppInner() {
       }
     };
 
-    // Start secondary data without blocking current render.
     void loadSecondaryData();
 
-    // Let the browser paint before loading below-the-fold photos.
     if (
       'requestIdleCallback' in window
     ) {
@@ -417,19 +487,17 @@ function AppInner() {
     }
   };
 
-  // ------------------------------------------------------------------
-  // PUBLIC STARTUP
-  // ------------------------------------------------------------------
+  // ---------------------------------------------------------------------------
+  // STARTUP
+  // ---------------------------------------------------------------------------
 
   useEffect(() => {
     void loadPublicData();
   }, []);
 
-  // ------------------------------------------------------------------
+  // ---------------------------------------------------------------------------
   // ADMIN STARTUP
-  //
-  // Admin data is never loaded for ordinary visitors.
-  // ------------------------------------------------------------------
+  // ---------------------------------------------------------------------------
 
   useEffect(() => {
     const isAdminActive =
@@ -444,24 +512,25 @@ function AppInner() {
     currentUser,
   ]);
 
-  // ------------------------------------------------------------------
+  // ---------------------------------------------------------------------------
   // ROUTING
-  // ------------------------------------------------------------------
+  // ---------------------------------------------------------------------------
 
   useEffect(() => {
     const handleRouteChange = () => {
-      const path = window.location.pathname
-        .toLowerCase()
-        .replace(/^\/|\/$/g, '');
+      const path =
+        window.location.pathname
+          .toLowerCase()
+          .replace(/^\/|\/$/g, '');
 
-      const hash = window.location.hash
-        .toLowerCase()
-        .replace(/^#\/?|\/$/g, '');
+      const hash =
+        window.location.hash
+          .toLowerCase()
+          .replace(/^#\/?|\/$/g, '');
 
       const activeAdmin =
         storageService.getCurrentAdmin();
 
-      // In-page public anchors
       const isPublicAnchor = [
         'hero',
         'products-showcase',
@@ -481,10 +550,6 @@ function AppInner() {
           return;
         }
       }
-
-      // --------------------------------------------------------------
-      // HASH ROUTING
-      // --------------------------------------------------------------
 
       if (hash) {
         if (
@@ -596,10 +661,6 @@ function AppInner() {
         }
       }
 
-      // --------------------------------------------------------------
-      // PATHNAME ROUTING
-      // --------------------------------------------------------------
-
       if (
         path === 'panel-secure-access' ||
         path === 'admin/login' ||
@@ -683,9 +744,9 @@ function AppInner() {
     };
   }, []);
 
-  // ------------------------------------------------------------------
+  // ---------------------------------------------------------------------------
   // NAVIGATION
-  // ------------------------------------------------------------------
+  // ---------------------------------------------------------------------------
 
   const handleAdminNavigate = (
     tab: string
@@ -718,6 +779,7 @@ function AppInner() {
       tab.startsWith('admin')
     ) {
       setCurrentTab(tab);
+
       window.location.hash =
         `#/${tab}`;
 
@@ -733,9 +795,8 @@ function AppInner() {
   const handleLoginSuccess = (
     user: AdminUser
   ) => {
-    // The admin-data effect below will load the data once.
-    // Avoid doing the exact same request here a second time.
     setCurrentUser(user);
+
     handleAdminNavigate(
       'admin-visual-editor'
     );
@@ -751,9 +812,9 @@ function AppInner() {
     );
   };
 
-  // ------------------------------------------------------------------
+  // ---------------------------------------------------------------------------
   // PRODUCT MANAGEMENT
-  // ------------------------------------------------------------------
+  // ---------------------------------------------------------------------------
 
   const handleSaveProduct = async (
     product: Product
@@ -798,14 +859,16 @@ function AppInner() {
     const updatedCats =
       await storageService.getCategories();
 
-    setCategories(updatedCats);
+    setCategories(
+      updatedCats
+    );
 
     return newCat;
   };
 
-  // ------------------------------------------------------------------
+  // ---------------------------------------------------------------------------
   // CATALOG / PRICE LIST
-  // ------------------------------------------------------------------
+  // ---------------------------------------------------------------------------
 
   const handleUpdateCatalog = async (
     info: Partial<CatalogInfo>
@@ -876,9 +939,9 @@ function AppInner() {
     }
   };
 
-  // ------------------------------------------------------------------
+  // ---------------------------------------------------------------------------
   // SLIDER
-  // ------------------------------------------------------------------
+  // ---------------------------------------------------------------------------
 
   const handleSaveSliderProducts =
     async (
@@ -894,9 +957,9 @@ function AppInner() {
       );
     };
 
-  // ------------------------------------------------------------------
+  // ---------------------------------------------------------------------------
   // MESSAGES
-  // ------------------------------------------------------------------
+  // ---------------------------------------------------------------------------
 
   const handleMarkAsRead = async (
     messageId: string
@@ -908,7 +971,9 @@ function AppInner() {
     const updated =
       await storageService.getMessages();
 
-    setMessages(updated);
+    setMessages(
+      updated
+    );
   };
 
   const handleDeleteMessage =
@@ -922,12 +987,14 @@ function AppInner() {
       const updated =
         await storageService.getMessages();
 
-      setMessages(updated);
+      setMessages(
+        updated
+      );
     };
 
-  // ------------------------------------------------------------------
+  // ---------------------------------------------------------------------------
   // RESET
-  // ------------------------------------------------------------------
+  // ---------------------------------------------------------------------------
 
   const handleResetData = async () => {
     await storageService.resetToDefaults();
@@ -938,9 +1005,9 @@ function AppInner() {
     ]);
   };
 
-  // ------------------------------------------------------------------
+  // ---------------------------------------------------------------------------
   // ADMIN PROFILE
-  // ------------------------------------------------------------------
+  // ---------------------------------------------------------------------------
 
   const handleUpdateAdminProfile =
     async (
@@ -956,9 +1023,9 @@ function AppInner() {
       setCurrentUser(updated);
     };
 
-  // ------------------------------------------------------------------
+  // ---------------------------------------------------------------------------
   // ORDER MODAL
-  // ------------------------------------------------------------------
+  // ---------------------------------------------------------------------------
 
   const handleOpenOrder = (
     product?: KitchenProductItem
@@ -972,26 +1039,30 @@ function AppInner() {
     );
   };
 
-  // ------------------------------------------------------------------
-  // CONTENT READY GATE
+  // ---------------------------------------------------------------------------
+  // CONTENT / STARTUP GATE
   //
-  // IMPORTANT:
-  // ContentContext now initializes from cache synchronously.
-  // Therefore returning visitors do NOT wait here.
+  // Two conditions are required:
   //
-  // Only first-time visitors without cached content wait for the
-  // authoritative server content.
-  // ------------------------------------------------------------------
+  // 1. ContentContext must have usable content.
+  // 2. A very short visual startup delay must be complete.
+  //
+  // The second condition is intentionally only 1.2 seconds.
+  // It does not wait for secondary site data.
+  // ---------------------------------------------------------------------------
 
-  if (!isContentReady) {
+  if (
+    !isContentReady ||
+    !startupDelayComplete
+  ) {
     return (
       <ContentLoadingScreen />
     );
   }
 
-  // ------------------------------------------------------------------
+  // ---------------------------------------------------------------------------
   // ADMIN LOGIN
-  // ------------------------------------------------------------------
+  // ---------------------------------------------------------------------------
 
   if (
     currentTab ===
@@ -1017,9 +1088,9 @@ function AppInner() {
     );
   }
 
-  // ------------------------------------------------------------------
+  // ---------------------------------------------------------------------------
   // ADMIN DASHBOARD
-  // ------------------------------------------------------------------
+  // ---------------------------------------------------------------------------
 
   if (
     currentTab.startsWith(
@@ -1256,9 +1327,9 @@ function AppInner() {
     );
   }
 
-  // ------------------------------------------------------------------
+  // ---------------------------------------------------------------------------
   // CATEGORIES PAGE
-  // ------------------------------------------------------------------
+  // ---------------------------------------------------------------------------
 
   if (
     currentTab ===
@@ -1344,7 +1415,6 @@ function AppInner() {
           }
         />
 
-        {/* Interactive Order & Inquiry Modal */}
         {isOrderModalOpen && (
           <Suspense
             fallback={null}
@@ -1369,7 +1439,6 @@ function AppInner() {
           </Suspense>
         )}
 
-        {/* Interactive Wholesale Batch & Margin Estimator Modal */}
         {isEstimatorOpen && (
           <Suspense
             fallback={null}
@@ -1399,9 +1468,9 @@ function AppInner() {
     );
   }
 
-  // ------------------------------------------------------------------
+  // ---------------------------------------------------------------------------
   // COMPANY PHOTOS PAGE
-  // ------------------------------------------------------------------
+  // ---------------------------------------------------------------------------
 
   if (
     currentTab ===
@@ -1476,7 +1545,6 @@ function AppInner() {
           }
         />
 
-        {/* Interactive Order & Inquiry Modal */}
         {isOrderModalOpen && (
           <Suspense
             fallback={null}
@@ -1501,7 +1569,6 @@ function AppInner() {
           </Suspense>
         )}
 
-        {/* Interactive Wholesale Batch & Margin Estimator Modal */}
         {isEstimatorOpen && (
           <Suspense
             fallback={null}
@@ -1531,9 +1598,9 @@ function AppInner() {
     );
   }
 
-  // ------------------------------------------------------------------
+  // ---------------------------------------------------------------------------
   // COVERFLOW
-  // ------------------------------------------------------------------
+  // ---------------------------------------------------------------------------
 
   if (
     currentTab ===
@@ -1553,16 +1620,15 @@ function AppInner() {
     );
   }
 
-  // ------------------------------------------------------------------
+  // ---------------------------------------------------------------------------
   // MAIN PUBLIC WEBSITE
-  // ------------------------------------------------------------------
+  // ---------------------------------------------------------------------------
 
   return (
     <div
       className="min-h-screen bg-[#1E4B57] text-[#EDEAE4] flex flex-col font-vazir relative selection:bg-[#346D80] selection:text-[#EDEAE4]"
       dir="rtl"
     >
-      {/* Header */}
       <Header
         onOpenOrderModal={() =>
           handleOpenOrder()
@@ -1591,10 +1657,7 @@ function AppInner() {
         }}
       />
 
-      {/* Main Content */}
       <main className="flex-1 relative z-10">
-
-        {/* Hero */}
         <Hero
           onOpenOrderModal={() =>
             handleOpenOrder()
@@ -1604,7 +1667,6 @@ function AppInner() {
           }
         />
 
-        {/* Product Slider */}
         <ProductSlider
           onOpenOrderModal={(p) =>
             handleOpenOrder(p)
@@ -1620,7 +1682,6 @@ function AppInner() {
           }
         />
 
-        {/* Categories */}
         <HomeCategoriesSection
           categories={
             categories
@@ -1653,14 +1714,12 @@ function AppInner() {
           }}
         />
 
-        {/* Features */}
         <Features
           onOpenOrderModal={() =>
             handleOpenOrder()
           }
         />
 
-        {/* Company Photos */}
         <HomeCompanyPhotosSection
           photos={
             companyPhotos
@@ -1675,10 +1734,8 @@ function AppInner() {
           }}
         />
 
-        {/* FAQ */}
         <FAQSection />
 
-        {/* Final CTA */}
         <FinalCTA
           onOpenOrderModal={() =>
             handleOpenOrder()
@@ -1695,7 +1752,6 @@ function AppInner() {
         />
       </main>
 
-      {/* Footer */}
       <Footer
         onOpenOrderModal={() =>
           handleOpenOrder()
@@ -1707,7 +1763,6 @@ function AppInner() {
         }
       />
 
-      {/* Order Modal */}
       {isOrderModalOpen && (
         <Suspense
           fallback={null}
@@ -1732,7 +1787,6 @@ function AppInner() {
         </Suspense>
       )}
 
-      {/* Batch Estimator Modal */}
       {isEstimatorOpen && (
         <Suspense
           fallback={null}
@@ -1762,9 +1816,9 @@ function AppInner() {
   );
 }
 
-// --------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 // ROOT APP
-// --------------------------------------------------------------------
+// -----------------------------------------------------------------------------
 
 export default function App() {
   return (
