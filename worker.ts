@@ -554,9 +554,10 @@ export default {
     // =========================
     // UPLOAD
     // =========================
-    
+
     if (path === "/api/upload") {
-    
+
+
       if (
         method === "OPTIONS" &&
         upload.onRequestOptions
@@ -567,8 +568,8 @@ export default {
           env
         );
       }
-    
-    
+
+
       if (
         method === "POST" &&
         upload.onRequestPost
@@ -579,8 +580,8 @@ export default {
           env
         );
       }
-    
-    
+
+
       if (
         method === "DELETE" &&
         upload.onRequestDelete
@@ -591,10 +592,12 @@ export default {
           env
         );
       }
-    
-    
+
+
       return apiNotFound(path);
+
     }
+
 
     // =========================
     // UPLOAD SIGN
