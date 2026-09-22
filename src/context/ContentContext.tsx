@@ -231,9 +231,13 @@ export const ContentProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const [activeEditId, setActiveEditId] = useState<string | null>(null);
   const [hoveredEditId, setHoveredEditId] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState<boolean>(false);
-  // NEW: starts true if we already had a cached snapshot to show (so the UI
-  // never has to wait), and only starts false on a first-ever visit.
-  const [isContentReady, setIsContentReady] = useState<boolean>(() => readCachedContent() !== null);
+  // IMPORTANT:
+  // Never mark content as ready just because a local cache exists.
+  // The cache can be older than the server and would cause:
+  //   old text -> first paint -> server text -> second paint
+  // Instead, the page stays behind the splash screen until the server
+  // content has been resolved. The cache is only used as an offline fallback.
+  const [isContentReady, setIsContentReady] = useState<boolean>(false);
 
   const dir: 'rtl' | 'ltr' = language === 'en' ? 'ltr' : 'rtl';
 
@@ -259,26 +263,48 @@ export const ContentProvider: React.FC<{ children: React.ReactNode }> = ({ child
     }
   }, []);
 
-  // Fetch the latest content from the server. Even when we rendered from
-  // cache, we still refresh in the background so edits made in the admin
-  // panel show up — but the UI never has to fall back to DEFAULT_SITE_CONTENT
-  // to do it.
+  // Resolve the authoritative server content BEFORE rendering the website.
+  // This is intentionally NOT a background refresh: rendering cached content
+  // first and replacing it with server content causes the visible text flash.
+  //
+  // The cache is retained as an offline/error fallback only.
   useEffect(() => {
     let isMounted = true;
-    contentRepository.getSiteContent()
-      .then((loaded) => {
+
+    const loadContent = async () => {
+      try {
+        const loaded = await contentRepository.getSiteContent();
+
         if (!isMounted) return;
-        if (loaded && typeof loaded === 'object' && Object.keys(loaded).length > 0) {
+
+        if (
+          loaded &&
+          typeof loaded === 'object' &&
+          Object.keys(loaded).length > 0
+        ) {
           setContent(loaded);
           setDraftContent(loaded);
           writeCachedContent(loaded);
+        } else {
+          // An empty server response is not valid site content.
+          // Keep the existing cache/default content and finish loading.
+          console.warn('Site content response was empty; using local fallback.');
         }
-        setIsContentReady(true);
-      })
-      .catch((e) => {
+      } catch (e) {
         console.error('Failed to load site content:', e);
-        if (isMounted) setIsContentReady(true);
-      });
+
+        // Offline/error fallback:
+        // getInitialContent() has already loaded the last known-good cache
+        // synchronously, so do not replace it with a newer-looking default.
+      } finally {
+        if (isMounted) {
+          setIsContentReady(true);
+        }
+      }
+    };
+
+    void loadContent();
+
     return () => {
       isMounted = false;
     };
@@ -615,7 +641,62 @@ export const ContentProvider: React.FC<{ children: React.ReactNode }> = ({ child
     ]
   );
 
-  return <ContentContext.Provider value={value}>{children}</ContentContext.Provider>;
+  // Do not render the real website until authoritative content has been
+  // resolved. This prevents the old/default content from ever being painted
+  // and then replaced a moment later.
+  //
+  // The provider itself is still mounted, so all hooks/components keep their
+  // normal context contract once the loading screen is replaced.
+  return (
+    <ContentContext.Provider value={value}>
+      {isContentReady ? (
+        children
+      ) : (
+        <div
+          aria-busy="true"
+          aria-label="در حال بارگذاری"
+          style={{
+            minHeight: '100vh',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            background: '#ffffff',
+            color: '#111111',
+            fontFamily: 'inherit',
+          }}
+        >
+          <div
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: '14px',
+            }}
+          >
+            <div
+              style={{
+                width: '28px',
+                height: '28px',
+                border: '2px solid rgba(17,17,17,0.12)',
+                borderTopColor: '#111111',
+                borderRadius: '50%',
+                animation: 'ideahome-content-loader 0.8s linear infinite',
+              }}
+            />
+            <span style={{ fontSize: '13px', opacity: 0.55 }}>
+              در حال بارگذاری...
+            </span>
+          </div>
+
+          <style>{`
+            @keyframes ideahome-content-loader {
+              to { transform: rotate(360deg); }
+            }
+          `}</style>
+        </div>
+      )}
+    </ContentContext.Provider>
+  );
 };
 
 export const useSiteContent = (): ContentContextType => {
