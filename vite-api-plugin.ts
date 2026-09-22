@@ -236,8 +236,104 @@ export function viteApiPlugin(): Plugin {
           );
         }
 
+        // 2.25 Server File Upload (Multipart Form Data)
+        if (cleanUrl === '/api/upload' && method === 'POST' && req.headers['content-type']?.includes('multipart/form-data')) {
+          try {
+            const request = new Request('http://localhost:3000' + (req.url || '/api/upload'), {
+              method: 'POST',
+              headers: req.headers as any,
+              body: req as any,
+              duplex: 'half'
+            } as any);
+
+            const incoming = await request.formData();
+            const file = incoming.get('file');
+
+            if (!file || !(file instanceof Blob)) {
+              res.statusCode = 400;
+              res.setHeader('Content-Type', 'application/json');
+              return res.end(JSON.stringify({ success: false, error: 'فایل ارسال نشده است.' }));
+            }
+
+            const rawFileName = (incoming.get('fileName') as string) || (file as any).name || 'IdeaHome-Document.pdf';
+            const isPrice = rawFileName.toLowerCase().includes('price');
+            const isCatalog = rawFileName.toLowerCase().includes('catalog');
+            const requestedFolder = incoming.get('folder') as string;
+            const folder = requestedFolder || (isPrice ? '/ideahome/price-list' : isCatalog ? '/ideahome/catalog' : '/ideahome/uploads');
+
+            const privateKey = process.env.IMAGEKIT_PRIVATE_KEY;
+            if (privateKey) {
+              const uploadForm = new FormData();
+              uploadForm.append('file', file);
+              uploadForm.append('fileName', rawFileName);
+              uploadForm.append('folder', folder);
+              uploadForm.append('useUniqueFileName', 'true');
+
+              const authHeader = 'Basic ' + Buffer.from(`${privateKey}:`).toString('base64');
+              const ikRes = await fetch('https://upload.imagekit.io/api/v1/files/upload', {
+                method: 'POST',
+                headers: {
+                  Authorization: authHeader
+                },
+                body: uploadForm
+              });
+
+              const responseText = await ikRes.text();
+              let ikData: any = {};
+              try {
+                ikData = JSON.parse(responseText);
+              } catch {
+                ikData = { raw: responseText };
+              }
+
+              if (ikRes.ok && ikData?.url) {
+                res.statusCode = 200;
+                res.setHeader('Content-Type', 'application/json');
+                return res.end(JSON.stringify({
+                  success: true,
+                  url: ikData.url,
+                  fileId: ikData.fileId || '',
+                  publicId: ikData.fileId || '',
+                  key: ikData.fileId || '',
+                  name: ikData.name || rawFileName,
+                  size: ikData.size || file.size
+                }));
+              } else {
+                console.error('IMAGEKIT UPLOAD ERROR IN DEV SERVER:', ikRes.status, ikData);
+              }
+            }
+
+            // High-speed local dev fallback if ImageKit credentials missing or offline
+            const arrayBuffer = await file.arrayBuffer();
+            const buffer = Buffer.from(arrayBuffer);
+            const mimeType = file.type || 'application/pdf';
+            const base64Data = `data:${mimeType};base64,${buffer.toString('base64')}`;
+            const localId = `local_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+
+            res.statusCode = 200;
+            res.setHeader('Content-Type', 'application/json');
+            return res.end(JSON.stringify({
+              success: true,
+              url: base64Data,
+              fileId: localId,
+              publicId: localId,
+              key: localId,
+              name: rawFileName,
+              size: file.size
+            }));
+          } catch (err: any) {
+            console.error('VITE API UPLOAD HANDLER ERROR:', err);
+            res.statusCode = 500;
+            res.setHeader('Content-Type', 'application/json');
+            return res.end(JSON.stringify({
+              success: false,
+              error: err?.message || 'خطا در آپلود فایل در سرور'
+            }));
+          }
+        }
+
         // 2.3 Upload Delete / Destroy
-        if ((cleanUrl === '/api/upload' || cleanUrl === '/api/upload/destroy') && (method === 'DELETE' || method === 'POST')) {
+        if ((cleanUrl === '/api/upload/destroy' || (cleanUrl === '/api/upload' && method === 'DELETE')) || (cleanUrl === '/api/upload' && method === 'POST' && !req.headers['content-type']?.includes('multipart/form-data'))) {
           const privateKey = process.env.IMAGEKIT_PRIVATE_KEY;
           if (privateKey) {
             try {
@@ -488,8 +584,12 @@ export function viteApiPlugin(): Plugin {
             if (upstream.ok) {
               const buffer = await upstream.arrayBuffer();
               const contentType = upstream.headers.get('content-type') || 'application/pdf';
+              let guessedName = 'IdeaHome-Catalog.pdf';
+              try {
+                guessedName = decodeURIComponent(new URL(fileUrl).pathname.split('/').pop() || 'IdeaHome-Catalog.pdf');
+              } catch {}
               res.setHeader('Content-Type', contentType);
-              res.setHeader('Content-Disposition', 'attachment; filename="catalog.pdf"');
+              res.setHeader('Content-Disposition', `attachment; filename="${guessedName}"`);
               res.statusCode = 200;
               return res.end(Buffer.from(buffer));
             }
@@ -525,8 +625,12 @@ export function viteApiPlugin(): Plugin {
             if (upstream.ok) {
               const buffer = await upstream.arrayBuffer();
               const contentType = upstream.headers.get('content-type') || 'application/pdf';
+              let guessedName = 'IdeaHome-PriceList.pdf';
+              try {
+                guessedName = decodeURIComponent(new URL(fileUrl).pathname.split('/').pop() || 'IdeaHome-PriceList.pdf');
+              } catch {}
               res.setHeader('Content-Type', contentType);
-              res.setHeader('Content-Disposition', 'attachment; filename="pricelist.pdf"');
+              res.setHeader('Content-Disposition', `attachment; filename="${guessedName}"`);
               res.statusCode = 200;
               return res.end(Buffer.from(buffer));
             }
