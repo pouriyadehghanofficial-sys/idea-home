@@ -595,7 +595,8 @@ class StorageService {
 
       if (!res.ok) {
         const errData = await res.json().catch(() => ({ error: 'خطا در ثبت مشخصات کاتالوگ در سرور' }));
-        console.warn('Server catalog update warning:', errData);
+        console.error('Server catalog update failed:', errData);
+        throw new Error(errData?.error || 'ذخیره کاتالوگ در سرور ناموفق بود. تغییرات فقط در همین مرورگر ذخیره شد.');
       } else {
         const serverData: CatalogInfo = await res.json().catch(() => null);
         if (serverData && serverData.fileUrl) {
@@ -604,8 +605,9 @@ class StorageService {
           safeLocalStorageSet(LOCAL_CATALOG_KEY, JSON.stringify(saved));
         }
       }
-    } catch (err) {
-      console.warn('Network error updating catalog on server, retained locally:', err);
+    } catch (err: any) {
+      console.error('Network error updating catalog on server, retained locally:', err);
+      throw err instanceof Error ? err : new Error('ارتباط با سرور برای ذخیره کاتالوگ برقرار نشد.');
     }
 
     return saved;
@@ -696,7 +698,8 @@ class StorageService {
 
       if (!res.ok) {
         const errData = await res.json().catch(() => ({ error: 'خطا در ثبت مشخصات لیست قیمت در سرور' }));
-        console.warn('Server price-list update warning:', errData);
+        console.error('Server price-list update failed:', errData);
+        throw new Error(errData?.error || 'ذخیره لیست قیمت در سرور ناموفق بود. تغییرات فقط در همین مرورگر ذخیره شد.');
       } else {
         const serverData: PriceListInfo = await res.json().catch(() => null);
         if (serverData && serverData.fileUrl) {
@@ -705,8 +708,9 @@ class StorageService {
           safeLocalStorageSet(LOCAL_PRICE_LIST_KEY, JSON.stringify(saved));
         }
       }
-    } catch (err) {
-      console.warn('Network error updating price-list on server, retained locally:', err);
+    } catch (err: any) {
+      console.error('Network error updating price-list on server, retained locally:', err);
+      throw err instanceof Error ? err : new Error('ارتباط با سرور برای ذخیره لیست قیمت برقرار نشد.');
     }
 
     return saved;
