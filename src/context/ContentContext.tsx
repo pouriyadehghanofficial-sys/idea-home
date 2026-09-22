@@ -244,49 +244,81 @@ export const ContentProvider: React.FC<{ children: React.ReactNode }> = ({ child
   useEffect(() => {
     let isMounted = true;
 
-    // Safety timeout: if network is down/offline, unblock after 2000ms using defaults
-    const safetyTimer = setTimeout(() => {
-      if (isMounted && !isReady) {
-        const fallback = contentRepository.getInitialContentSync();
-        setContent(fallback);
-        setDraftContent(fallback);
-        setIsReady(true);
-      }
-    }, 2000);
-
-    contentRepository.getSiteContent().then((loaded) => {
+  // Safety timeout: if network is down/offline, unblock after 2000ms using defaults
+  const safetyTimer = setTimeout(() => {
+    if (isMounted && !isReady) {
+      const fallback = contentRepository.getInitialContentSync();
+  
+      setContent(fallback);
+      setDraftContent(fallback);
+      setIsReady(true);
+    }
+  }, 2000);
+  
+  
+  contentRepository.getSiteContent()
+    .then((loaded) => {
+  
       if (!isMounted) return;
+  
       clearTimeout(safetyTimer);
-
-      if (loaded && typeof loaded === 'object' && Object.keys(loaded).length > 0) {
-        if (!hasValidCache) {
-          // If we had no cache, populate state and reveal children for the first time
-          setContent(loaded);
-          setDraftContent(loaded);
-          setIsReady(true);
-        }
+  
+  
+      if (
+        loaded &&
+        typeof loaded === 'object' &&
+        Object.keys(loaded).length > 0
+      ) {
+  
+        // Always use latest server content
+        // Do not block updates because of localStorage cache
+  
+        setContent(loaded);
+        setDraftContent(loaded);
+        setIsReady(true);
+  
+  
       } else if (!isReady) {
-        const fallback = contentRepository.getInitialContentSync();
+  
+  
+        const fallback =
+          contentRepository.getInitialContentSync();
+  
+  
         setContent(fallback);
         setDraftContent(fallback);
         setIsReady(true);
+  
       }
-    }).catch(() => {
+  
+    })
+    .catch(() => {
+  
       if (isMounted && !isReady) {
+  
         clearTimeout(safetyTimer);
-        const fallback = contentRepository.getInitialContentSync();
+  
+  
+        const fallback =
+          contentRepository.getInitialContentSync();
+  
+  
         setContent(fallback);
         setDraftContent(fallback);
         setIsReady(true);
+  
       }
+  
     });
-
-    return () => {
-      isMounted = false;
-      clearTimeout(safetyTimer);
-    };
-  }, [hasValidCache, isReady]);
-
+  
+  
+  return () => {
+  
+    isMounted = false;
+  
+    clearTimeout(safetyTimer);
+  
+  };
   // Determine if there are unsaved changes
   const hasUnsavedChanges = useMemo(() => {
     const draftKeys = Object.keys(draftContent);
