@@ -8,14 +8,18 @@
 // proxy, ensuring maximum reliability across diverse networks. Local paths
 // are already same-origin and safe to use directly.
 
-export function getSafeDownloadUrl(catalogUrl: string): string {
-  const isExternal = /^https?:\/\//i.test(catalogUrl);
-  const isImageKit = /imagekit\.io/i.test(catalogUrl);
+export function getSafeDownloadUrl(fileUrl: string, type: 'catalog' | 'pricelist' = 'catalog'): string {
+  if (!fileUrl) return '';
+
+  const isExternal = /^https?:\/\//i.test(fileUrl);
+  const isImageKit = /imagekit\.io/i.test(fileUrl);
 
   if (isExternal && isImageKit) {
-    return `/api/catalog/download?url=${encodeURIComponent(catalogUrl)}`;
+    const isPrice = type === 'pricelist' || /price/i.test(fileUrl);
+    const endpoint = isPrice ? '/api/price-list/download' : '/api/catalog/download';
+    return `${endpoint}?url=${encodeURIComponent(fileUrl)}`;
   }
 
   // Local path or some other trusted same-origin URL — use as-is.
-  return catalogUrl;
+  return fileUrl;
 }
