@@ -6,6 +6,8 @@ import * as password from "./functions/api/auth/password";
 
 import * as catalog from "./functions/api/catalog/index";
 import * as catalogDownload from "./functions/api/catalog/download";
+import * as priceList from "./functions/api/price-list/index";
+import * as priceListDownload from "./functions/api/price-list/download";
 
 import * as content from "./functions/api/content/index";
 
@@ -256,6 +258,50 @@ export default {
       if (method === "PUT" && catalog.onRequestPut) {
         return callHandler(
           catalog.onRequestPut,
+          request,
+          env
+        );
+      }
+
+      return apiNotFound(path);
+    }
+
+
+    // =========================
+    // PRICE LIST DOWNLOAD
+    // =========================
+
+    if (path === "/api/price-list/download") {
+
+      if (method === "GET" && priceListDownload.onRequestGet) {
+        return callHandler(
+          priceListDownload.onRequestGet,
+          request,
+          env
+        );
+      }
+
+      return apiNotFound(path);
+    }
+
+
+    // =========================
+    // PRICE LIST
+    // =========================
+
+    if (path === "/api/price-list") {
+
+      if (method === "GET" && priceList.onRequestGet) {
+        return callHandler(
+          priceList.onRequestGet,
+          request,
+          env
+        );
+      }
+
+      if (method === "PUT" && priceList.onRequestPut) {
+        return callHandler(
+          priceList.onRequestPut,
           request,
           env
         );
