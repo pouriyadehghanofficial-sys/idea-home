@@ -197,21 +197,7 @@ export const ContentProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const [hoveredEditId, setHoveredEditId] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState<boolean>(false);
 
-  // Track if valid cache was present at startup
-  const hadCacheAtStartup = React.useRef<boolean>(contentRepository.hasCacheSync());
-  // Bounded bootstrap window for first visit (when hadCacheAtStartup is false)
-  const isBootstrapWindowOpen = React.useRef<boolean>(!hadCacheAtStartup.current);
-
   const dir: 'rtl' | 'ltr' = language === 'en' ? 'ltr' : 'rtl';
-
-  useEffect(() => {
-    if (!hadCacheAtStartup.current) {
-      const timer = setTimeout(() => {
-        isBootstrapWindowOpen.current = false;
-      }, 1600);
-      return () => clearTimeout(timer);
-    }
-  }, []);
 
   // Synchronize document dir and lang attributes without layout flashes
   useEffect(() => {
@@ -236,28 +222,14 @@ export const ContentProvider: React.FC<{ children: React.ReactNode }> = ({ child
   }, []);
 
   // Background check for fresh remote updates from server
+  // Background fetch silently updates the browser cache for the NEXT session
+  // To strictly prevent Flash of Default Content (FODC), visible React content is NEVER
+  // mutated mid-session in the background.
   useEffect(() => {
     let isMounted = true;
     contentRepository.getSiteContent().then((loaded) => {
-      if (!isMounted || !loaded || typeof loaded !== 'object' || Object.keys(loaded).length === 0) {
-        return;
-      }
-
-      if (hadCacheAtStartup.current) {
-        // Returning visitor with existing cache:
-        // Cache in localStorage is already updated by contentRepository.getSiteContent().
-        // DO NOT update visible React content during this page session to prevent flashing.
-        return;
-      }
-
-      // First-time visitor (no initial cache):
-      // If server responded within bounded bootstrap window (~1500-1600ms), use it as initial content.
-      // If server took too long, do NOT trigger a sudden visible DEFAULT -> SERVER replacement;
-      // the new content is already cached for the NEXT visit.
-      if (isBootstrapWindowOpen.current) {
-        setContent(loaded);
-        setDraftContent(loaded);
-      }
+      // Background fetch updates localStorage/IDB inside contentRepository.getSiteContent()
+      // We do not mutate visible React state here to eliminate any possibility of FOD.
     });
 
     return () => {
