@@ -2,8 +2,8 @@
 // Supports Cloudflare KV (Primary, 100% Free, No Credit Card), Supabase REST, Firebase Firestore REST, and D1
 // Built to ensure centralized, cross-device persistence across phones, laptops, and browsers
 
-import { Product, Category, CatalogInfo, SliderProduct, ContactMessage, CompanyPhoto } from '../../src/types';
-import { INITIAL_PRODUCTS, INITIAL_CATEGORIES, INITIAL_CATALOG, INITIAL_MESSAGES, INITIAL_COMPANY_PHOTOS } from '../../src/data/initialData';
+import { Product, Category, CatalogInfo, PriceListInfo, SliderProduct, ContactMessage, CompanyPhoto } from '../../src/types';
+import { INITIAL_PRODUCTS, INITIAL_CATEGORIES, INITIAL_CATALOG, INITIAL_PRICE_LIST, INITIAL_MESSAGES, INITIAL_COMPANY_PHOTOS } from '../../src/data/initialData';
 import { DEFAULT_SLIDER_PRODUCTS } from '../../src/data/sliderProducts';
 
 export type DatabaseProvider = 'kv' | 'imagekit' | 'supabase' | 'firebase' | 'memory';
@@ -496,6 +496,27 @@ export async function saveCatalogInfo(env: Env, updates: Partial<CatalogInfo>): 
     updatedAt: updates.updatedAt || new Date().toLocaleDateString('fa-IR')
   };
   await setStoreData(env, KEY_CATALOG, updated);
+  return updated;
+}
+
+// ==========================================
+// 3.5. PRICE LIST API
+// ==========================================
+const KEY_PRICE_LIST = 'ideahome:price-list';
+
+export async function getPriceListInfo(env: Env): Promise<PriceListInfo> {
+  const info = await getStoreData<PriceListInfo>(env, KEY_PRICE_LIST, INITIAL_PRICE_LIST);
+  return (info && info.fileUrl) ? info : INITIAL_PRICE_LIST;
+}
+
+export async function savePriceListInfo(env: Env, updates: Partial<PriceListInfo>): Promise<PriceListInfo> {
+  const current = await getPriceListInfo(env);
+  const updated: PriceListInfo = {
+    ...current,
+    ...updates,
+    updatedAt: updates.updatedAt || new Date().toLocaleDateString('fa-IR')
+  };
+  await setStoreData(env, KEY_PRICE_LIST, updated);
   return updated;
 }
 
