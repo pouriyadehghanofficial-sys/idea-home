@@ -1,136 +1,306 @@
 // Content Repository for IDEA HOME (آیدیا هوم)
-// Strict Server-Side Persistence Authority:
-// Admin → API → Persistent Cloud Storage (ImageKit/KV) → GET /api/content → All Browsers
+//
+// Server-Side Persistence Authority:
+//
+// Admin
+//   ↓
+// API
+//   ↓
+// Persistent Cloud Storage (ImageKit/KV)
+//   ↓
+// GET /api/content
+//   ↓
+// All Browsers
+//
+// IMPORTANT:
+// This repository must NEVER allow a broken/hanging API request
+// to keep the application waiting indefinitely.
 
-import { DEFAULT_SITE_CONTENT, getContentDefinition } from '../data/defaultContent';
+import {
+  DEFAULT_SITE_CONTENT,
+  getContentDefinition,
+} from '../data/defaultContent';
+
 import { idbSet } from './storage';
 
-const LOCAL_CONTENT_KEY = 'arasteh_site_content_db';
+const LOCAL_CONTENT_KEY =
+  'arasteh_site_content_db';
+
+/*
+ * Maximum amount of time a GET /api/content request is allowed
+ * to remain pending.
+ *
+ * This protects the application from a hanging Cloudflare/API
+ * request and prevents the browser tab from remaining in a
+ * permanent loading state because of content loading.
+ */
+const CONTENT_REQUEST_TIMEOUT_MS = 5000;
 
 export class ContentRepository {
-  private inMemoryCache: Record<string, string> | null = null;
+  private inMemoryCache:
+    | Record<string, string>
+    | null = null;
 
+  /**
+   * Synchronous initial content.
+   *
+   * This method must remain synchronous because it can be used
+   * during the initial React render.
+   */
   getInitialContentSync(): Record<string, string> {
     if (this.inMemoryCache) {
       return this.inMemoryCache;
     }
 
-    return { ...DEFAULT_SITE_CONTENT };
+    return {
+      ...DEFAULT_SITE_CONTENT,
+    };
   }
 
-  async getSiteContent(): Promise<Record<string, string>> {
+  /**
+   * GET /api/content
+   *
+   * Behavior:
+   *
+   * 1. Ask the server for the latest content.
+   * 2. Do not use browser/edge cache.
+   * 3. Abort the request after CONTENT_REQUEST_TIMEOUT_MS.
+   * 4. If successful, merge with DEFAULT_SITE_CONTENT.
+   * 5. Save successful data to local persistence.
+   * 6. If server fails, use local persistence.
+   * 7. If everything fails, use in-memory/default content.
+   */
+  async getSiteContent(): Promise<
+    Record<string, string>
+  > {
+    let controller:
+      | AbortController
+      | null = null;
+
+    let timeoutId:
+      | ReturnType<typeof setTimeout>
+      | null = null;
+
     try {
+      controller =
+        new AbortController();
+
+      timeoutId = setTimeout(() => {
+        controller?.abort();
+      }, CONTENT_REQUEST_TIMEOUT_MS);
+
       /*
        * IMPORTANT:
-       * Do not use ?t=${Date.now()} here.
        *
-       * ContentContext now handles the visual loading strategy:
-       * - cached content is rendered immediately
-       * - server content is fetched in the background
-       * - the fresh server response is stored for the next visit
+       * No timestamp query parameter is used here.
        *
-       * We still use no-store here so that the server remains the
-       * authoritative source and a stale browser/edge response cannot
-       * overwrite our local cache.
+       * ContentContext handles the visual loading strategy.
+       *
+       * cache: 'no-store' ensures that the browser does not
+       * intentionally serve a cached GET response.
        */
-      const res = await fetch('/api/content', {
-        method: 'GET',
-        cache: 'no-store',
-        headers: {
-          'Accept': 'application/json',
-          'Cache-Control': 'no-store, no-cache, must-revalidate',
-          'Pragma': 'no-cache',
-        },
-      });
+      const res = await fetch(
+        '/api/content',
+        {
+          method: 'GET',
+
+          cache: 'no-store',
+
+          signal:
+            controller.signal,
+
+          headers: {
+            Accept:
+              'application/json',
+
+            'Cache-Control':
+              'no-store, no-cache, must-revalidate',
+
+            Pragma:
+              'no-cache',
+          },
+        }
+      );
 
       if (res.ok) {
-        const remoteData = await res.json();
+        const remoteData =
+          await res.json();
 
-        if (remoteData && typeof remoteData === 'object') {
+        if (
+          remoteData &&
+          typeof remoteData === 'object' &&
+          !Array.isArray(remoteData)
+        ) {
+          /*
+           * DEFAULT_SITE_CONTENT provides the complete
+           * application shape while server values override
+           * defaults.
+           */
           const merged = {
             ...DEFAULT_SITE_CONTENT,
             ...remoteData,
           };
 
-          this.inMemoryCache = merged;
+          /*
+           * Keep the newest successful server response
+           * in memory.
+           */
+          this.inMemoryCache =
+            merged;
 
+          /*
+           * Persist the successful response locally.
+           *
+           * These operations must never block the main
+           * content-loading path if local storage fails.
+           */
           try {
             localStorage.setItem(
               LOCAL_CONTENT_KEY,
-              JSON.stringify(merged)
+              JSON.stringify(
+                merged
+              )
             );
 
             /*
-             * IndexedDB persistence is kept as a secondary local
-             * persistence layer. It does not affect the initial
-             * rendering path.
+             * IndexedDB is secondary persistence.
+             *
+             * It is intentionally not required for the
+             * initial rendering path.
              */
             await idbSet(
               LOCAL_CONTENT_KEY,
               merged
             );
-          } catch {}
+          } catch {
+            /*
+             * Local persistence failure must never turn a
+             * successful server response into an application
+             * failure.
+             */
+          }
 
           return merged;
         }
+
+        console.warn(
+          'GET /api/content returned an invalid content object.'
+        );
+      } else {
+        console.warn(
+          `GET /api/content failed with HTTP ${res.status}.`
+        );
       }
     } catch (err) {
-      console.warn(
-        'Server fetch failed:',
-        err
-      );
+      /*
+       * AbortController timeout.
+       *
+       * This is expected protection against a hanging API.
+       */
+      if (
+        err instanceof DOMException &&
+        err.name === 'AbortError'
+      ) {
+        console.warn(
+          `GET /api/content timed out after ${CONTENT_REQUEST_TIMEOUT_MS}ms.`
+        );
+      } else {
+        console.warn(
+          'Server fetch failed:',
+          err
+        );
+      }
+    } finally {
+      if (timeoutId !== null) {
+        clearTimeout(timeoutId);
+      }
     }
 
     /*
-     * Offline / API failure fallback.
-     * Use the repository's local persistence if available.
+     * ---------------------------------------------------------
+     * LOCAL FALLBACK
+     * ---------------------------------------------------------
+     *
+     * If the server is unavailable, use the last locally
+     * persisted content.
      */
     try {
-      const local = localStorage.getItem(
-        LOCAL_CONTENT_KEY
-      );
+      const local =
+        localStorage.getItem(
+          LOCAL_CONTENT_KEY
+        );
 
       if (local) {
-        const parsed = JSON.parse(local);
+        const parsed =
+          JSON.parse(local);
 
         if (
           parsed &&
-          typeof parsed === 'object'
+          typeof parsed === 'object' &&
+          !Array.isArray(parsed)
         ) {
           const merged = {
             ...DEFAULT_SITE_CONTENT,
             ...parsed,
           };
 
-          this.inMemoryCache = merged;
+          this.inMemoryCache =
+            merged;
 
           return merged;
         }
       }
-    } catch {}
+    } catch {
+      /*
+       * Ignore malformed/unavailable local storage.
+       */
+    }
 
-    return this.inMemoryCache || {
-      ...DEFAULT_SITE_CONTENT
-    };
+    /*
+     * ---------------------------------------------------------
+     * IN-MEMORY / DEFAULT FALLBACK
+     * ---------------------------------------------------------
+     */
+    return (
+      this.inMemoryCache || {
+        ...DEFAULT_SITE_CONTENT,
+      }
+    );
   }
 
+  /**
+   * Save the complete site content.
+   *
+   * The server remains the persistence authority.
+   *
+   * The local cache is updated only after the server confirms
+   * that the save succeeded.
+   */
   async saveSiteContent(
     newContent: Record<string, string>
   ): Promise<boolean> {
     const token =
-      localStorage.getItem('arasteh_auth_token') ||
+      localStorage.getItem(
+        'arasteh_auth_token'
+      ) ||
       'local_session_active';
 
     /*
-     * Get the latest server/local version first.
-     * This prevents an incomplete client-side object from accidentally
-     * replacing the whole persisted content.
+     * Get the latest available content first.
+     *
+     * This protects against accidentally replacing the complete
+     * persisted object with an incomplete client object.
+     *
+     * NOTE:
+     * getSiteContent has a 5-second timeout, so a broken API
+     * cannot leave this operation hanging forever.
      */
     const current =
       await this.getSiteContent();
 
     /*
-     * Only apply the new values on top of the current content.
+     * Apply the requested changes on top of the
+     * latest available content.
      */
     const mergedContent = {
       ...current,
@@ -143,9 +313,13 @@ export class ContentRepository {
         method: 'POST',
 
         headers: {
-          'Content-Type': 'application/json',
-          'Cache-Control': 'no-store',
-          'Authorization':
+          'Content-Type':
+            'application/json',
+
+          'Cache-Control':
+            'no-store',
+
+          Authorization:
             `Bearer ${token}`,
         },
 
@@ -157,30 +331,39 @@ export class ContentRepository {
 
     if (!res.ok) {
       const err =
-        await res.json()
-          .catch(() => ({}));
+        await res
+          .json()
+          .catch(
+            () => ({})
+          );
 
       throw new Error(
         err.error ||
-        err.message ||
-        'خطا در ذخیره محتوا'
+          err.message ||
+          'خطا در ذخیره محتوا'
       );
     }
 
     const data =
-      await res.json()
-        .catch(() => ({}));
+      await res
+        .json()
+        .catch(
+          () => ({})
+        );
 
-    if (data.success === false) {
+    if (
+      data.success === false
+    ) {
       throw new Error(
         data.error ||
-        'ذخیره محتوا تایید نشد'
+          'ذخیره محتوا تایید نشد'
       );
     }
 
     /*
-     * Only update the local authoritative cache after
-     * the server has successfully accepted the changes.
+     * The server accepted the changes.
+     *
+     * Only now update local persistence.
      */
     this.inMemoryCache =
       mergedContent;
@@ -197,7 +380,11 @@ export class ContentRepository {
         LOCAL_CONTENT_KEY,
         mergedContent
       );
-    } catch {}
+    } catch {
+      /*
+       * Local cache failure does not mean the server save failed.
+       */
+    }
 
     return true;
   }
@@ -220,6 +407,9 @@ export class ContentRepository {
     return true;
   }
 
+  /**
+   * Reset a single field to its factory default.
+   */
   async resetField(
     id: string
   ): Promise<string> {
@@ -244,26 +434,31 @@ export class ContentRepository {
     return value;
   }
 
+  /**
+   * Reset all fields belonging to a section.
+   */
   async resetSection(
     sectionKey: string
-  ): Promise<Record<string, string>> {
+  ): Promise<
+    Record<string, string>
+  > {
     const current =
       await this.getSiteContent();
 
     const {
-      CONTENT_DEFINITIONS
-    } =
-      await import(
-        '../data/defaultContent'
-      );
+      CONTENT_DEFINITIONS,
+    } = await import(
+      '../data/defaultContent'
+    );
 
     CONTENT_DEFINITIONS
       .filter(
-        item =>
-          item.sectionKey === sectionKey
+        (item) =>
+          item.sectionKey ===
+          sectionKey
       )
       .forEach(
-        item => {
+        (item) => {
           current[item.id] =
             item.defaultValue;
         }
@@ -276,8 +471,12 @@ export class ContentRepository {
     return current;
   }
 
-  async resetAll():
-    Promise<Record<string, string>> {
+  /**
+   * Reset all persisted content through the server.
+   */
+  async resetAll(): Promise<
+    Record<string, string>
+  > {
     const token =
       localStorage.getItem(
         'arasteh_auth_token'
@@ -291,24 +490,40 @@ export class ContentRepository {
           method: 'DELETE',
 
           headers: {
-            'Cache-Control': 'no-store',
+            'Cache-Control':
+              'no-store',
 
-            'Authorization':
+            Authorization:
               `Bearer ${token}`,
           },
         }
       );
 
     if (!res.ok) {
+      const err =
+        await res
+          .json()
+          .catch(
+            () => ({})
+          );
+
       throw new Error(
-        'خطا در بازنشانی محتوا'
+        err.error ||
+          err.message ||
+          'خطا در بازنشانی محتوا'
       );
     }
 
+    /*
+     * Reset in-memory state.
+     */
     this.inMemoryCache = {
-      ...DEFAULT_SITE_CONTENT
+      ...DEFAULT_SITE_CONTENT,
     };
 
+    /*
+     * Reset local persistence.
+     */
     try {
       localStorage.removeItem(
         LOCAL_CONTENT_KEY
@@ -318,10 +533,14 @@ export class ContentRepository {
         LOCAL_CONTENT_KEY,
         DEFAULT_SITE_CONTENT
       );
-    } catch {}
+    } catch {
+      /*
+       * Ignore local persistence errors.
+       */
+    }
 
     return {
-      ...DEFAULT_SITE_CONTENT
+      ...DEFAULT_SITE_CONTENT,
     };
   }
 }
