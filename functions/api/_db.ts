@@ -12,7 +12,13 @@ export type DatabaseProvider = 'kv' | 'imagekit' | 'supabase' | 'firebase' | 'me
 const memoryCache = new Map<string, any>();
 
 export function getDatabaseProvider(env: Env): DatabaseProvider {
-  // IDEA HOME uses ImageKit as the only persistent storage
+  // 1. Cloudflare KV (bound in wrangler.toml as "KV") — preferred: free, fast, and
+  //    actually persistent across all edge locations and deployments.
+  if (env.KV || (env as any).PRODUCTS_KV) {
+    return 'kv';
+  }
+
+  // 2. ImageKit as an alternative persistent storage, if configured
   if (
     env.IMAGEKIT_PRIVATE_KEY &&
     env.IMAGEKIT_URL_ENDPOINT
@@ -20,6 +26,9 @@ export function getDatabaseProvider(env: Env): DatabaseProvider {
     return 'imagekit';
   }
 
+  // 3. Last resort: in-memory only, NOT persistent (data is lost between
+  //    Worker cold starts / edge locations / deployments). Configure KV or
+  //    ImageKit to avoid this.
   return 'memory';
 }
 
