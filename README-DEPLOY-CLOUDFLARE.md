@@ -131,3 +131,8 @@ npx wrangler pages deploy dist --project-name arasteh-manufacturing
 - **نام کاربری**: `admin`
 - **رمز عبور پیش‌فرض اولیه**: `admin123`
 *(پس از اولین ورود، می‌توانید از بخش «تنظیمات حساب» رمز را تغییر دهید)*
+
+
+
+
+
