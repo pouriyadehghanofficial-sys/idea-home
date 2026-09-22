@@ -657,7 +657,11 @@ export const ContentProvider: React.FC<{ children: React.ReactNode }> = ({ child
     );
   }
 
-  return <ContentContext.Provider value={value}>{children}</ContentContext.Provider>;
+  return (
+    <ContentContext.Provider value={value}>
+      {children}
+    </ContentContext.Provider>
+  );
 };
 
 export const useSiteContent = (): ContentContextType => {
