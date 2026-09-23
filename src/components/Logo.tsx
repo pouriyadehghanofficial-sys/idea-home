@@ -10,8 +10,7 @@ interface LogoProps {
 
 /**
  * Official Brand Logo for IDEA HOME (آیدیا هوم)
- * Loaded from /public/logo.svg, with a slight stroke-dilate filter
- * applied to compensate for the thin lines of the traced artwork.
+ * Loaded from /public/logo.webp
  */
 export const Logo: React.FC<LogoProps> = ({
   variant = 'header',
@@ -22,19 +21,19 @@ export const Logo: React.FC<LogoProps> = ({
   // Container styling tailored to frosted glass white (سفید شیشه‌ای) for a modern, beautiful aesthetic
   let containerClasses =
     'bg-white/85 backdrop-blur-md hover:bg-white/95 border border-white/60 shadow-[0_4px_20px_rgba(0,0,0,0.12)] transition-all duration-300';
-  let logoHeight = 'h-9 sm:h-10';
+  let logoHeight = 'h-7 sm:h-8';
 
   if (variant === 'footer') {
     containerClasses =
       'bg-white/85 backdrop-blur-md hover:bg-white/95 border border-white/60 shadow-[0_4px_20px_rgba(0,0,0,0.15)] transition-all duration-300';
-    logoHeight = 'h-10 sm:h-11';
+    logoHeight = 'h-8 sm:h-9';
   } else if (variant === 'hero') {
     containerClasses =
       'bg-white/90 backdrop-blur-md border border-white/70 shadow-lg';
-    logoHeight = 'h-12 sm:h-14';
+    logoHeight = 'h-10 sm:h-12';
   } else if (variant === 'standalone') {
     containerClasses = 'bg-transparent border-transparent shadow-none';
-    logoHeight = 'h-9';
+    logoHeight = 'h-8';
   }
 
   return (
@@ -43,17 +42,10 @@ export const Logo: React.FC<LogoProps> = ({
       <div
         className={`px-3 py-1.5 rounded-2xl flex items-center justify-center ${containerClasses} group`}
       >
-        {/* Hidden SVG filter that dilates (thickens) the thin traced strokes */}
-        <svg width="0" height="0" style={{ position: 'absolute' }} aria-hidden="true">
-          <filter id="boldenLogo">
-            <feMorphology operator="dilate" radius="1.2" />
-          </filter>
-        </svg>
         <img
-          src="/logo.svg"
+          src="/logo.webp"
           alt="IDEA HOME Logo"
           className={`${logoHeight} w-auto transition-transform duration-300 group-hover:scale-103`}
-          style={{ filter: 'url(#boldenLogo)' }}
         />
       </div>
 
