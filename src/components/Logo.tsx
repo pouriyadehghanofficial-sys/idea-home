@@ -43,7 +43,7 @@ export const Logo: React.FC<LogoProps> = ({
         className={`px-3 py-1.5 rounded-2xl flex items-center justify-center ${containerClasses} group`}
       >
         <img
-          src="/logo.svg"
+          src="/logo.webp"
           alt="IDEA HOME Logo"
           className={`${logoHeight} w-auto transition-transform duration-300 group-hover:scale-103`}
         />
