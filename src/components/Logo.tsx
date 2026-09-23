@@ -21,26 +21,26 @@ export const Logo: React.FC<LogoProps> = ({
   // Container styling tailored to frosted glass white (سفید شیشه‌ای) for a modern, beautiful aesthetic
   let containerClasses =
     'bg-white/85 backdrop-blur-md hover:bg-white/95 border border-white/60 shadow-[0_4px_20px_rgba(0,0,0,0.12)] transition-all duration-300';
-  let logoHeight = 'h-7 sm:h-8';
+  let logoHeight = 'h-11 sm:h-12';
 
   if (variant === 'footer') {
     containerClasses =
       'bg-white/85 backdrop-blur-md hover:bg-white/95 border border-white/60 shadow-[0_4px_20px_rgba(0,0,0,0.15)] transition-all duration-300';
-    logoHeight = 'h-8 sm:h-9';
+    logoHeight = 'h-12 sm:h-14';
   } else if (variant === 'hero') {
     containerClasses =
       'bg-white/90 backdrop-blur-md border border-white/70 shadow-lg';
-    logoHeight = 'h-10 sm:h-12';
+    logoHeight = 'h-16 sm:h-20';
   } else if (variant === 'standalone') {
     containerClasses = 'bg-transparent border-transparent shadow-none';
-    logoHeight = 'h-8';
+    logoHeight = 'h-12';
   }
 
   return (
     <div className={`inline-flex items-center gap-3 select-none ${className}`} dir="rtl">
       {/* Clean high-contrast container preserving exact aspect ratio */}
       <div
-        className={`px-3 py-1.5 rounded-2xl flex items-center justify-center ${containerClasses} group`}
+        className={`px-2.5 py-1 rounded-2xl flex items-center justify-center ${containerClasses} group`}
       >
         <img
           src="/logo.webp"
