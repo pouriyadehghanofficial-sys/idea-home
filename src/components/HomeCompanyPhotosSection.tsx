@@ -33,7 +33,6 @@ export const HomeCompanyPhotosSection: React.FC<HomeCompanyPhotosSectionProps> =
         sub: p.category === 'factory' ? 'خط تولید و کارخانه' : 'دفتر مرکزی و شوروم',
         imageUrl: getOptimizedImageUrl(p.url, { width: 600, quality: 80 }),
         g: 'linear-gradient(150deg, #1E4B57 0%, #15343d 50%, #0E262C 100%)',
-        badge: idx === 0 ? 'ویژه' : undefined,
       }))
     : [
         {
