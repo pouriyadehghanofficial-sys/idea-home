@@ -60,7 +60,6 @@ export const HomeCompanyPhotosSection: React.FC<HomeCompanyPhotosSectionProps> =
           title: 'شوروم مرکزی و سالن نمایش',
           sub: 'دفتر مرکزی',
           g: 'linear-gradient(150deg, #C9A24B 0%, #8A6E2E 50%, #1E4B57 100%)',
-          badge: 'ویژه',
         },
         {
           id: 'slide-5',
