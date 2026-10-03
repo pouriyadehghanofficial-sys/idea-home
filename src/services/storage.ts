@@ -340,7 +340,7 @@ class StorageService {
   // --- 2. CATEGORIES (Server API Direct Persistence with Local & IDB Sync) ---
   async getCategories(): Promise<Category[]> {
     try {
-      const res = await fetch('/api/categories', {
+      const res = await fetch(`/api/categories?_=${Date.now()}`, {
         cache: 'no-store',
         headers: { 'Cache-Control': 'no-cache' }
       });
@@ -387,9 +387,19 @@ class StorageService {
       });
       if (res.ok) {
         saved = await res.json();
+      } else if (res.status === 401 || res.status === 403 || res.status >= 500) {
+        // Real server-side rejection: do NOT pretend the save worked
+        const errData = await res.json().catch(() => ({} as any));
+        throw new Error(
+          errData.error ||
+            (res.status >= 500
+              ? 'خطا در ذخیره روی سرور. لطفاً دوباره تلاش کنید.'
+              : 'نشست مدیریت منقضی شده است؛ لطفاً دوباره وارد پنل شوید.')
+        );
       }
-    } catch (e) {
-      console.warn('API saveCategory error, syncing to local storage:', e);
+    } catch (e: any) {
+      if (e instanceof Error && !(e instanceof TypeError)) throw e;
+      console.warn('API saveCategory network error, syncing to local storage:', e);
     }
 
     // Always update local cache & IDB reliably
