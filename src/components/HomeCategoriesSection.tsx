@@ -1,7 +1,7 @@
 import React from 'react';
 import { Layers, ArrowLeft, ImageIcon, Sparkles } from 'lucide-react';
 import { Category } from '../types';
-import { getOptimizedImageUrl, isLegacyMockImage } from '../utils/imageUtils';
+import { getOptimizedImageUrl, getCategoryImages } from '../utils/imageUtils';
 import { EditableText } from './EditableText';
 import { useViewport } from '../context/ViewportContext';
 
@@ -66,8 +66,7 @@ export const HomeCategoriesSection: React.FC<HomeCategoriesSectionProps> = ({
       {displayCategories.length > 0 ? (
         <div className={`grid ${isMobile ? 'grid-cols-1 gap-4' : isTablet ? 'grid-cols-2 gap-6' : 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8'}`}>
           {displayCategories.map((category) => {
-            const rawImages = category.images || [];
-            const validImages = rawImages.filter(img => !isLegacyMockImage(img));
+            const validImages = getCategoryImages(category);
             const primaryImage = validImages[0] ? getOptimizedImageUrl(validImages[0], { width: 600, quality: 75 }) : '';
 
             return (
