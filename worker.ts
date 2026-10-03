@@ -526,6 +526,14 @@ export default {
         );
       }
 
+      if (method === "DELETE" && companyPhotos.onRequestDelete) {
+        return callHandler(
+          companyPhotos.onRequestDelete,
+          request,
+          env
+        );
+      }
+
       return apiNotFound(path);
     }
 
