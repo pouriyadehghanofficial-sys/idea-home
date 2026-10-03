@@ -22,6 +22,8 @@ export interface Category {
   iconName?: string;
   slug?: string;
   images?: string[];
+  /** URL of the image chosen as the poster (shown first on the site). Must be one of `images`. */
+  posterImage?: string;
   catalogUrl?: string;
   catalogTitle?: string;
   catalogSize?: string;
