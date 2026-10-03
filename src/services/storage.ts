@@ -470,7 +470,7 @@ class StorageService {
       const contentType = res.headers.get('content-type') || '';
       if (res.ok && contentType.includes('application/json')) {
         const data = await res.json();
-        if (Array.isArray(data) && data.length > 0) {
+        if (Array.isArray(data)) {
           return sanitizeCompanyPhotos(data);
         }
       }
@@ -511,9 +511,18 @@ class StorageService {
   }
 
   async deleteCompanyPhoto(id: string): Promise<boolean> {
-    const res = await this.fetchWithAuth(`/api/company-photos?id=${encodeURIComponent(id)}`, {
+    // تلاش اول: DELETE /api/company-photos?id=...
+    let res = await this.fetchWithAuth(`/api/company-photos?id=${encodeURIComponent(id)}`, {
       method: 'DELETE'
     });
+
+    // اگر سرور (نسخه قدیمی‌تر) این مسیر را نشناخت، مسیر /api/company-photos/:id را امتحان کن
+    if (res.status === 404 || res.status === 405) {
+      const retry = await this.fetchWithAuth(`/api/company-photos/${encodeURIComponent(id)}`, {
+        method: 'DELETE'
+      });
+      if (retry.ok || retry.status !== 404) res = retry;
+    }
 
     if (!res.ok) {
       const errData = await res.json().catch(() => ({ error: 'خطا در حذف تصویر از سرور' }));
