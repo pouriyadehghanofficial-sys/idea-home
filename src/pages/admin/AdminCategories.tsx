@@ -13,6 +13,7 @@ import {
   Loader2, 
   FolderPlus,
   RefreshCw,
+  Star,
   X
 } from 'lucide-react';
 import { Category } from '../../types';
@@ -167,8 +168,13 @@ export const AdminCategories: React.FC<AdminCategoriesProps> = ({ categories: in
       } else if (deleteModal.type === 'image' && activeCategory && deleteModal.targetIndex !== undefined) {
         const indexToRemove = deleteModal.targetIndex;
         const currentImages = activeCategory.images || [];
+        const removedUrl = currentImages[indexToRemove];
         const updatedImages = currentImages.filter((_, idx) => idx !== indexToRemove);
-        const updatedCat = { ...activeCategory, images: updatedImages };
+        const updatedCat = {
+          ...activeCategory,
+          images: updatedImages,
+          posterImage: activeCategory.posterImage === removedUrl ? '' : activeCategory.posterImage
+        };
         await storageService.saveCategory(updatedCat);
         setCategories((prev) =>
           prev.map((c) => (c.id === activeCategory.id ? updatedCat : c))
@@ -220,17 +226,21 @@ export const AdminCategories: React.FC<AdminCategoriesProps> = ({ categories: in
       if (result.success && result.url) {
         const currentImages = activeCategory.images || [];
         let updatedImages: string[];
+        let nextPoster = activeCategory.posterImage;
 
         if (replaceImageIndexRef.current !== null && replaceImageIndexRef.current >= 0) {
-          // Replace specific image
+          // Replace specific image (keep poster selection if the poster itself was replaced)
           updatedImages = [...currentImages];
+          if (nextPoster && currentImages[replaceImageIndexRef.current] === nextPoster) {
+            nextPoster = result.url;
+          }
           updatedImages[replaceImageIndexRef.current] = result.url;
         } else {
           // Add new image
           updatedImages = [...currentImages, result.url];
         }
 
-        const updatedCat = { ...activeCategory, images: updatedImages };
+        const updatedCat = { ...activeCategory, images: updatedImages, posterImage: nextPoster || '' };
         await storageService.saveCategory(updatedCat);
 
         setCategories((prev) =>
@@ -255,8 +265,13 @@ export const AdminCategories: React.FC<AdminCategoriesProps> = ({ categories: in
   const handleRemoveImage = async (indexToRemove: number) => {
     if (!activeCategory) return;
     const currentImages = activeCategory.images || [];
+    const removedUrl = currentImages[indexToRemove];
     const updatedImages = currentImages.filter((_, idx) => idx !== indexToRemove);
-    const updatedCat = { ...activeCategory, images: updatedImages };
+    const updatedCat = {
+      ...activeCategory,
+      images: updatedImages,
+      posterImage: activeCategory.posterImage === removedUrl ? '' : activeCategory.posterImage
+    };
 
     setIsSaving(true);
     try {
@@ -268,6 +283,30 @@ export const AdminCategories: React.FC<AdminCategoriesProps> = ({ categories: in
       setTimeout(() => setSaveSuccess(false), 4000);
     } catch (err: any) {
       setErrorMessage(err.message || 'خطا در حذف تصویر');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  // Choose an image as the poster (shown first on the website)
+  const handleSetPoster = async (index: number) => {
+    if (!activeCategory) return;
+    const url = (activeCategory.images || [])[index];
+    if (!url || activeCategory.posterImage === url) return;
+    const updatedCat: Category = { ...activeCategory, posterImage: url };
+
+    setIsSaving(true);
+    setErrorMessage('');
+    try {
+      await storageService.saveCategory(updatedCat);
+      setCategories((prev) =>
+        prev.map((c) => (c.id === activeCategory.id ? updatedCat : c))
+      );
+      setSaveSuccess(true);
+      setTimeout(() => setSaveSuccess(false), 4000);
+      if (onRefresh) await onRefresh();
+    } catch (err: any) {
+      setErrorMessage(err.message || 'خطا در ذخیره پوستر');
     } finally {
       setIsSaving(false);
     }
@@ -627,7 +666,7 @@ export const AdminCategories: React.FC<AdminCategoriesProps> = ({ categories: in
                       تصاویر محصولات این دسته‌بندی ({activeCategory.images?.length || 0})
                     </h4>
                     <p className="text-xs text-[#1E4B57]/60 mt-0.5">
-                      تصاویر در گالری محصولات این دسته‌بندی نمایش داده خواهند شد.
+                      روی ستاره هر تصویر بزنید تا به‌عنوان «پوستر» انتخاب شود؛ پوستر اول در سایت دیده می‌شود و با کلیک روی آن بقیه تصاویر نمایش داده می‌شوند.
                     </p>
                   </div>
 
@@ -651,10 +690,18 @@ export const AdminCategories: React.FC<AdminCategoriesProps> = ({ categories: in
 
                 {/* Images Grid */}
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-                  {(activeCategory.images || []).map((imgUrl, index) => (
+                  {(activeCategory.images || []).map((imgUrl, index) => {
+                    const effectivePoster =
+                      activeCategory.posterImage && (activeCategory.images || []).includes(activeCategory.posterImage)
+                        ? activeCategory.posterImage
+                        : (activeCategory.images || [])[0];
+                    const isPoster = imgUrl === effectivePoster && (activeCategory.images || []).indexOf(imgUrl) === index;
+                    return (
                     <div
                       key={index}
-                      className="group relative rounded-2xl overflow-hidden border border-[#1E4B57]/15 bg-[#EDEAE4]/30 aspect-square flex flex-col justify-between"
+                      className={`group relative rounded-2xl overflow-hidden border bg-[#EDEAE4]/30 aspect-square flex flex-col justify-between ${
+                        isPoster ? 'border-[#C9A24B] ring-2 ring-[#C9A24B]/60' : 'border-[#1E4B57]/15'
+                      }`}
                     >
                       <img
                         src={imgUrl}
@@ -665,6 +712,19 @@ export const AdminCategories: React.FC<AdminCategoriesProps> = ({ categories: in
 
                       {/* Image Action Overlay */}
                       <div className="absolute inset-0 bg-[#1E4B57]/70 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2 p-2 backdrop-blur-xs">
+                        <button
+                          type="button"
+                          onClick={() => handleSetPoster(index)}
+                          disabled={isSaving}
+                          title={isPoster ? 'این تصویر پوستر است' : 'انتخاب به‌عنوان پوستر'}
+                          className={`p-2 rounded-xl transition-all cursor-pointer disabled:opacity-50 ${
+                            isPoster
+                              ? 'bg-[#C9A24B] text-[#1E4B57]'
+                              : 'bg-white/20 hover:bg-[#C9A24B] text-white hover:text-[#1E4B57]'
+                          }`}
+                        >
+                          <Star className={`w-4 h-4 ${isPoster ? 'fill-current' : ''}`} />
+                        </button>
                         <button
                           type="button"
                           onClick={() => triggerReplaceImage(index)}
@@ -683,11 +743,19 @@ export const AdminCategories: React.FC<AdminCategoriesProps> = ({ categories: in
                         </button>
                       </div>
 
+                      {isPoster && (
+                        <div className="absolute top-2 right-2 bg-[#C9A24B] text-[#1E4B57] text-[10px] px-2 py-0.5 rounded-md font-black flex items-center gap-1 shadow-sm">
+                          <Star className="w-3 h-3 fill-current" />
+                          پوستر
+                        </div>
+                      )}
+
                       <div className="absolute bottom-2 right-2 bg-black/60 text-white text-[10px] px-2 py-0.5 rounded-md font-mono">
                         #{index + 1}
                       </div>
                     </div>
-                  ))}
+                    );
+                  })}
 
                   {/* Empty state upload card */}
                   {(!activeCategory.images || activeCategory.images.length === 0) && (
