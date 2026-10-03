@@ -14,7 +14,10 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
       status: 200,
       headers: {
         'Content-Type': 'application/json',
-        'Cache-Control': 'public, max-age=60, s-maxage=300, stale-while-revalidate=86400',
+        // Must never be cached: admin changes (poster image, new photos) must appear immediately
+        'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
+        'CDN-Cache-Control': 'no-store',
+        'Cloudflare-CDN-Cache-Control': 'no-store',
         'X-Database-Provider': getDatabaseProviderName(env)
       }
     });
