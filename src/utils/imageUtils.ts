@@ -78,6 +78,21 @@ export function sanitizeCategories<T extends { images?: string[] }>(categories?:
 }
 
 /**
+ * Returns the category's valid images with the poster image first.
+ * If no poster is set (or it no longer exists in the list), the original order is kept
+ * and the first image acts as the poster.
+ */
+export function getCategoryImages(cat?: { images?: string[]; posterImage?: string } | null): string[] {
+  if (!cat) return [];
+  const valid = (Array.isArray(cat.images) ? cat.images : []).filter((img) => !isLegacyMockImage(img));
+  const poster = cat.posterImage;
+  if (poster && valid.includes(poster)) {
+    return [poster, ...valid.filter((img, i) => !(img === poster && i === valid.indexOf(poster)))];
+  }
+  return valid;
+}
+
+/**
  * Clean company photos by removing legacy Unsplash images.
  */
 export function sanitizeCompanyPhotos<T extends { url?: string }>(photos?: T[] | null): T[] {
