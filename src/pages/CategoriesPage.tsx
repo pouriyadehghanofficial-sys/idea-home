@@ -16,7 +16,7 @@ import { Category } from '../types';
 import { storageService } from '../services/storage';
 import { EditableText } from '../components/EditableText';
 import { useSiteContent } from '../context/ContentContext';
-import { getOptimizedImageUrl, isLegacyMockImage } from '../utils/imageUtils';
+import { getOptimizedImageUrl, getCategoryImages } from '../utils/imageUtils';
 
 interface CategoriesPageProps {
   onBackToHome?: () => void;
@@ -81,7 +81,7 @@ export const CategoriesPage: React.FC<CategoriesPageProps> = ({
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (!activeGallery) return;
-      const images = activeGallery.category.images || [];
+      const images = getCategoryImages(activeGallery.category);
       const hasCatalog = !!activeGallery.category.catalogUrl;
       const totalSlides = images.length + (hasCatalog ? 1 : 0);
 
@@ -116,7 +116,7 @@ export const CategoriesPage: React.FC<CategoriesPageProps> = ({
   const handleNextSlide = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (!activeGallery) return;
-    const images = activeGallery.category.images || [];
+    const images = getCategoryImages(activeGallery.category);
     const hasCatalog = !!activeGallery.category.catalogUrl;
     const totalSlides = images.length + (hasCatalog ? 1 : 0);
     setActiveGallery({ ...activeGallery, index: (activeGallery.index + 1) % totalSlides });
@@ -125,7 +125,7 @@ export const CategoriesPage: React.FC<CategoriesPageProps> = ({
   const handlePrevSlide = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (!activeGallery) return;
-    const images = activeGallery.category.images || [];
+    const images = getCategoryImages(activeGallery.category);
     const hasCatalog = !!activeGallery.category.catalogUrl;
     const totalSlides = images.length + (hasCatalog ? 1 : 0);
     setActiveGallery({ ...activeGallery, index: (activeGallery.index - 1 + totalSlides) % totalSlides });
@@ -241,9 +241,7 @@ export const CategoriesPage: React.FC<CategoriesPageProps> = ({
         ) : (
           <div className="space-y-8">
             {filteredCategories.map((category) => {
-              const images = (category.images || [])
-                .filter(url => !isLegacyMockImage(url))
-                .map(url => getOptimizedImageUrl(url));
+              const images = getCategoryImages(category).map(url => getOptimizedImageUrl(url));
               const hasCatalog = !!category.catalogUrl;
 
               return (
@@ -275,17 +273,17 @@ export const CategoriesPage: React.FC<CategoriesPageProps> = ({
                   {/* Images & Catalog Gallery Grid */}
                   <div>
                     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-                      {/* Product Images */}
-                      {images.map((imgUrl, imgIdx) => (
+                      {/* Poster image only: the rest of the photos open in the gallery on click */}
+                      {images.slice(0, 1).map((imgUrl) => (
                         <div
-                          key={imgIdx}
-                          onClick={() => openLightbox(category, imgIdx)}
-                          className="group relative aspect-square rounded-2xl overflow-hidden bg-black/20 border border-white/10 cursor-pointer shadow-2xs hover:shadow-lg hover:border-[#C9A24B]/40 transition-all"
+                          key="poster"
+                          onClick={() => openLightbox(category, 0)}
+                          className="group relative aspect-square col-span-2 row-span-2 rounded-2xl overflow-hidden bg-black/20 border border-white/10 cursor-pointer shadow-2xs hover:shadow-lg hover:border-[#C9A24B]/40 transition-all"
                         >
                           <img
                             src={imgUrl}
-                            alt={`${category.name} ${imgIdx + 1}`}
-                            className="w-full h-full object-cover group-hover:scale-108 transition-transform duration-500"
+                            alt={category.name}
+                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                             loading="lazy"
                           />
                           <div className="absolute inset-0 bg-[#1E4B57]/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center backdrop-blur-xs">
@@ -293,9 +291,12 @@ export const CategoriesPage: React.FC<CategoriesPageProps> = ({
                               <Eye className="w-5 h-5" />
                             </span>
                           </div>
-                          <div className="absolute bottom-2 right-2 bg-black/60 text-white text-[10px] px-2 py-0.5 rounded-md font-mono">
-                            #{imgIdx + 1}
-                          </div>
+                          {images.length > 1 && (
+                            <div className="absolute bottom-2 right-2 bg-black/70 text-white text-[11px] px-2.5 py-1 rounded-lg font-bold flex items-center gap-1.5 backdrop-blur-xs">
+                              <ImageIcon className="w-3.5 h-3.5" />
+                              <span>{images.length} {getText('categories.photosCount', 'تصویر')}</span>
+                            </div>
+                          )}
                         </div>
                       ))}
 
@@ -338,7 +339,7 @@ export const CategoriesPage: React.FC<CategoriesPageProps> = ({
       {/* Fullscreen Interactive Lightbox Slideshow Modal */}
       {activeGallery && (() => {
         const currentCategory = activeGallery.category;
-        const images = currentCategory.images || [];
+        const images = getCategoryImages(currentCategory).map(url => getOptimizedImageUrl(url));
         const hasCatalog = !!currentCategory.catalogUrl;
         const totalSlides = images.length + (hasCatalog ? 1 : 0);
         const currentIndex = activeGallery.index;
