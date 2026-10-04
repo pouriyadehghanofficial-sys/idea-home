@@ -10,7 +10,7 @@ interface HeroProps {
   onDownloadPriceList?: () => void;
 }
 
-export const Hero: React.FC<HeroProps> = ({ onOpenOrderModal, onDownloadPriceList }) => {
+export const Hero: React.FC<HeroProps> = ({ onOpenOrderModal }) => {
   const { isMobile } = useViewport();
   const { dir, isEditorMode, setActiveEditId, isFieldDeleted, isContainerDeleted } = useSiteContent();
   const ForwardArrow = dir === 'ltr' ? ArrowRight : ArrowLeft;
@@ -34,17 +34,18 @@ export const Hero: React.FC<HeroProps> = ({ onOpenOrderModal, onDownloadPriceLis
     }
   };
 
-  const handlePriceListClick = (e: React.MouseEvent) => {
+  const handleContactClick = (e: React.MouseEvent) => {
     if (isEditorMode) {
       e.preventDefault();
       e.stopPropagation();
       setActiveEditId('hero.secondaryButton');
       return;
     }
-    if (onDownloadPriceList) {
-      onDownloadPriceList();
-    } else if (onOpenOrderModal) {
-      onOpenOrderModal();
+    const contactSection = document.getElementById('contact');
+    if (contactSection) {
+      contactSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    } else {
+      window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
     }
   };
 
@@ -221,23 +222,23 @@ export const Hero: React.FC<HeroProps> = ({ onOpenOrderModal, onDownloadPriceLis
                     setActiveEditId('hero.secondaryButton');
                   }}
                   className="px-4 py-2.5 rounded-xl border border-dashed border-red-400/60 bg-red-950/40 text-red-200 text-xs cursor-pointer select-none flex items-center gap-1.5"
-                  title="دکمه لیست قیمت و کادر آن حذف شده‌اند (کلیک برای بازیابی)"
+                  title="دکمه تماس با ما و کادر آن حذف شده‌اند (کلیک برای بازیابی)"
                 >
                   <EyeOff className="w-3.5 h-3.5 text-red-400" />
-                  <span className="text-xs font-vazir line-through text-red-300">دکمه لیست قیمت (حذف‌شده)</span>
+                  <span className="text-xs font-vazir line-through text-red-300">دکمه تماس با ما (حذف‌شده)</span>
                 </div>
               ) : (
                 <button
                   type="button"
-                  onClick={handlePriceListClick}
+                  onClick={handleContactClick}
                   className={`btn-gold ${isMobile ? 'w-full' : 'w-full sm:w-auto'} px-6 sm:px-8 py-3.5 sm:py-4 text-xs sm:text-sm font-bold flex items-center justify-center gap-2 cursor-pointer font-vazir shadow-lg hover:scale-102 active:scale-98 transition-transform whitespace-nowrap`}
-                  title={isEditorMode ? 'کلیک برای ویرایش دکمه لیست قیمت' : undefined}
+                  title={isEditorMode ? 'کلیک برای ویرایش دکمه تماس با ما' : undefined}
                 >
                   <EditableText
                     id="hero.secondaryButton"
                     as="span"
                     className="whitespace-nowrap"
-                    defaultText="لیست قیمت"
+                    defaultText="تماس با ما"
                   />
                   <ForwardArrow className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
                 </button>
