@@ -86,20 +86,20 @@ export const CONTENT_DEFINITIONS: ContentItemDefinition[] = [
     defaultValue: 'دریافت کاتالوگ',
   },
   {
-    id: 'header.navPriceList',
-    label: 'منو: لیست قیمت',
-    section: 'هدر و ناوبری',
-    sectionKey: 'header',
-    type: 'link',
-    defaultValue: 'لیست قیمت',
-  },
-  {
     id: 'header.navContact',
     label: 'منو: تماس با ما',
     section: 'هدر و ناوبری',
     sectionKey: 'header',
     type: 'link',
     defaultValue: 'تماس با ما',
+  },
+  {
+    id: 'header.menuTitle',
+    label: 'عنوان بالای منوی بازشونده',
+    section: 'هدر و ناوبری',
+    sectionKey: 'header',
+    type: 'link',
+    defaultValue: 'منوی اصلی آیدیا هوم',
   },
   {
     id: 'header.ctaButton',
@@ -163,11 +163,11 @@ export const CONTENT_DEFINITIONS: ContentItemDefinition[] = [
   },
   {
     id: 'hero.secondaryButton',
-    label: 'دکمه دوم هیرو (لیست قیمت)',
+    label: 'دکمه دوم هیرو (تماس با ما)',
     section: 'بخش اصلی (Hero)',
     sectionKey: 'hero',
     type: 'button',
-    defaultValue: 'لیست قیمت',
+    defaultValue: 'تماس با ما',
   },
   {
     id: 'hero.scrollPrompt',
@@ -1238,7 +1238,7 @@ export const DEFAULT_CONTENT_EN: Record<string, string> = {
   'hero.titleGradient': 'The Timeless Heart of Modern Kitchens',
   'hero.description': 'Engineering premium, ergonomic household and kitchen essentials with uncompromised manufacturing standards and forward-looking design.',
   'hero.primaryButton': 'Explore Product Showcase',
-  'hero.secondaryButton': 'Price List',
+  'hero.secondaryButton': 'Contact Us',
   'hero.scrollPrompt': 'Enter Product Gallery',
 
   // Slider
@@ -1502,7 +1502,7 @@ export const DEFAULT_CONTENT_AR: Record<string, string> = {
   'hero.titleGradient': 'الخيار الدائم للمنازل والمطابخ العصرية',
   'hero.description': 'تطوير وتصنيع مستلزمات المنزل والمطبخ بأعلى معايير الجودة والتصاميم الهادفة لراحة تدوم طويلاً.',
   'hero.primaryButton': 'مشاهدة نماذج المنتجات',
-  'hero.secondaryButton': 'قائمة الأسعار',
+  'hero.secondaryButton': 'اتصل بنا',
   'hero.scrollPrompt': 'الدخول لمعرض المنتجات',
 
   // Slider
