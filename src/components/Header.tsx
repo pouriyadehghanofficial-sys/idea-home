@@ -27,7 +27,7 @@ export const Header: React.FC<HeaderProps> = ({
 }) => {
   const [isScrolled, setIsScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const { isDesktop, isMobile } = useViewport();
+  const { isDesktop } = useViewport();
   const { isEditorMode, dir, setActiveEditId, getText } = useSiteContent();
   const ForwardArrow = dir === 'ltr' ? ArrowRight : ArrowLeft;
   const BackChevron = dir === 'ltr' ? ChevronRight : ChevronLeft;
@@ -90,7 +90,6 @@ export const Header: React.FC<HeaderProps> = ({
     { id: 'header.navCompanyPhotos', name: getText('header.navCompanyPhotos', 'تصاویر کارخانه و دفتر'), href: '#company-photos' },
     { id: 'header.navFaq', name: getText('header.navFaq', 'سوالات متداول'), href: '#faq' },
     { id: 'header.navCatalog', name: getText('header.navCatalog', 'دریافت کاتالوگ'), href: '#catalog-request' },
-    { id: 'header.navPriceList', name: getText('header.navPriceList', 'لیست قیمت'), href: '#price-list' },
     { id: 'header.navContact', name: getText('header.navContact', 'تماس با ما'), href: '#contact' },
   ];
 
@@ -128,32 +127,6 @@ export const Header: React.FC<HeaderProps> = ({
 
           {/* Unified Action Controls & Hamburger Menu (Desktop & Mobile) */}
           <div className="flex items-center gap-2 sm:gap-3 z-10 shrink-0">
-            {/* Wholesale CTA button on desktop & tablet */}
-            {!isMobile && (
-              <button
-                type="button"
-                onClick={(e) => {
-                  if (isEditorMode) {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    setActiveEditId('header.ctaButton');
-                    return;
-                  }
-                  onOpenOrderModal();
-                }}
-                className="hidden sm:flex btn-gold px-4 py-2 text-xs font-bold rounded-full items-center gap-2 font-vazir shadow-md hover:scale-102 active:scale-98 transition-all cursor-pointer whitespace-nowrap shrink-0"
-                title={isEditorMode ? 'کلیک برای ویرایش دکمه سفارش عمده' : undefined}
-              >
-                <EditableText
-                  id="header.ctaButton"
-                  as="span"
-                  className="whitespace-nowrap"
-                  defaultText="ثبت سفارش عمده"
-                />
-                <ForwardArrow className="w-3.5 h-3.5 shrink-0" />
-              </button>
-            )}
-
             {/* Language Switcher */}
             <LanguageSwitcher variant="header" />
 
@@ -216,7 +189,12 @@ export const Header: React.FC<HeaderProps> = ({
                 <div className="flex items-center justify-between p-4 sm:px-6 sm:py-4 border-b border-[#EDEAE4]/15 shrink-0 bg-[#1E4B57]">
                   <div className="flex items-center gap-2">
                     <span className="w-2.5 h-2.5 rounded-full bg-[#C9A24B] animate-pulse"></span>
-                    <span className="text-xs sm:text-sm font-bold text-[#EDEAE4]/90 font-vazir">{getText('header.menuTitle', 'منوی اصلی آیدیا هوم')}</span>
+                    <EditableText
+                      id="header.menuTitle"
+                      as="span"
+                      className="text-xs sm:text-sm font-bold text-[#EDEAE4]/90 font-vazir"
+                      defaultText="منوی اصلی آیدیا هوم"
+                    />
                   </div>
                   <button
                     type="button"
@@ -236,7 +214,7 @@ export const Header: React.FC<HeaderProps> = ({
                     {navLinks.map((link) => (
                       <a
                         key={link.id}
-                        href={isEditorMode ? undefined : (link.id === 'header.navPriceList' ? '#' : link.href)}
+                        href={isEditorMode ? undefined : link.href}
                         onClick={(e) => {
                           if (isEditorMode) {
                             e.preventDefault();
@@ -263,10 +241,7 @@ export const Header: React.FC<HeaderProps> = ({
                             return;
                           }
                           closeMobileMenu();
-                          if (link.id === 'header.navPriceList' && onDownloadPriceList) {
-                            e.preventDefault();
-                            onDownloadPriceList();
-                          } else if (onOpenHomePage && link.href.startsWith('#')) {
+                          if (onOpenHomePage && link.href.startsWith('#')) {
                             e.preventDefault();
                             onOpenHomePage();
                             setTimeout(() => {
